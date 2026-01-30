@@ -410,15 +410,25 @@ class LayoutEngine: ObservableObject {
 
             NSLog("LayoutEngine: Matched window by \(matchedBy)")
 
-            // STEP 1: Unminimize the window if it's minimized
+            // Check current minimized state
             var minimizedRef: CFTypeRef?
+            var isCurrentlyMinimized = false
             if AXUIElementCopyAttributeValue(targetWindow, kAXMinimizedAttribute as CFString, &minimizedRef) == .success {
-                if let minimized = minimizedRef as? Bool, minimized {
-                    NSLog("LayoutEngine: Window is minimized, unminimizing...")
-                    AXUIElementSetAttributeValue(targetWindow, kAXMinimizedAttribute as CFString, false as CFTypeRef)
-                    // Wait a moment for the window to unminimize
-                    try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
-                }
+                isCurrentlyMinimized = (minimizedRef as? Bool) ?? false
+            }
+
+            // OPTIMIZATION: If window should stay minimized and is already minimized, skip positioning
+            if window.isMinimized && isCurrentlyMinimized {
+                NSLog("LayoutEngine: Window already minimized and should stay minimized - skipping")
+                return true
+            }
+
+            // STEP 1: Unminimize only if window is minimized BUT should NOT be minimized
+            if isCurrentlyMinimized && !window.isMinimized {
+                NSLog("LayoutEngine: Window is minimized but should be visible, unminimizing...")
+                AXUIElementSetAttributeValue(targetWindow, kAXMinimizedAttribute as CFString, false as CFTypeRef)
+                // Wait a moment for the window to unminimize
+                try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
             }
 
             // STEP 2: Set position
@@ -443,12 +453,12 @@ class LayoutEngine: ObservableObject {
                 }
             }
 
-            // STEP 4: Handle minimized state
-            if window.isMinimized {
-                // Window should be minimized - minimize it
+            // STEP 4: Handle final minimized state
+            if window.isMinimized && !isCurrentlyMinimized {
+                // Window should be minimized but isn't - minimize it
                 NSLog("LayoutEngine: Minimizing window (was minimized in saved layout)")
                 AXUIElementSetAttributeValue(targetWindow, kAXMinimizedAttribute as CFString, true as CFTypeRef)
-            } else {
+            } else if !window.isMinimized {
                 // Window should be visible - raise it
                 AXUIElementSetAttributeValue(targetWindow, kAXMainAttribute as CFString, true as CFTypeRef)
                 AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString)
