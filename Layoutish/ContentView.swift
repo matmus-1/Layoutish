@@ -2,23 +2,14 @@
 //  ContentView.swift
 //  Layoutish
 //
-//  Created by Ross Mckinlay on 30/01/2026.
+//  NOTE: This file is not used - Layoutish is a menu bar only app.
+//  See MenuBarDropdownView.swift for the main UI.
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        EmptyView()
     }
-}
-
-#Preview {
-    ContentView()
 }
