@@ -20,6 +20,7 @@ struct WindowInfo: Codable, Identifiable, Equatable {
     var displayId: UInt32
     var windowIndex: Int  // For apps with multiple windows (index within that app)
     var zIndex: Int  // Global z-order: 0 = frontmost, higher = further back
+    var isMinimized: Bool  // Whether the window was minimized when captured
 
     init(
         id: UUID = UUID(),
@@ -29,7 +30,8 @@ struct WindowInfo: Codable, Identifiable, Equatable {
         frame: CGRect,
         displayId: UInt32,
         windowIndex: Int = 0,
-        zIndex: Int = 0
+        zIndex: Int = 0,
+        isMinimized: Bool = false
     ) {
         self.id = id
         self.appBundleId = appBundleId
@@ -39,6 +41,7 @@ struct WindowInfo: Codable, Identifiable, Equatable {
         self.displayId = displayId
         self.windowIndex = windowIndex
         self.zIndex = zIndex
+        self.isMinimized = isMinimized
     }
 }
 

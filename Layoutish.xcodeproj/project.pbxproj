@@ -14,9 +14,22 @@
 		F78D5D712F2CBB2800541EB0 /* Layoutish.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Layoutish.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F78D5D9E2F2CE3CA00541EB0 /* Exceptions for "Layoutish" folder in "Layoutish" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F78D5D702F2CBB2800541EB0 /* Layoutish */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F78D5D732F2CBB2800541EB0 /* Layoutish */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F78D5D9E2F2CE3CA00541EB0 /* Exceptions for "Layoutish" folder in "Layoutish" target */,
+			);
 			path = Layoutish;
 			sourceTree = "<group>";
 		};
@@ -264,6 +277,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Layoutish/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -297,6 +311,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Layoutish/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

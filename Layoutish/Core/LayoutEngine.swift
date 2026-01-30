@@ -144,7 +144,8 @@ class LayoutEngine: ObservableObject {
                 frame: frame,
                 displayId: displayId,
                 windowIndex: existingCount,
-                zIndex: globalZIndex  // Global z-order: 0 = frontmost
+                zIndex: globalZIndex,  // Global z-order: 0 = frontmost
+                isMinimized: false  // On-screen windows are not minimized
             )
 
             NSLog("LayoutEngine: Captured window - \(ownerName) '\(windowTitle ?? "untitled")' at (\(Int(x)), \(Int(y))) zIndex=\(globalZIndex)")
@@ -152,7 +153,11 @@ class LayoutEngine: ObservableObject {
             globalZIndex += 1  // Next window is further back
         }
 
-        NSLog("LayoutEngine: Captured \(windowInfos.count) windows total")
+        // Also capture minimized windows using Accessibility API
+        let minimizedWindows = captureMinimizedWindows(globalZIndexStart: globalZIndex)
+        windowInfos.append(contentsOf: minimizedWindows)
+
+        NSLog("LayoutEngine: Captured \(windowInfos.count) windows total (\(minimizedWindows.count) minimized)")
 
         if windowInfos.isEmpty {
             lastError = "No windows to capture"
@@ -216,10 +221,12 @@ class LayoutEngine: ObservableObject {
             }
         }
 
-        // Activate and unminimize ALL apps in the layout (not just newly launched ones)
-        NSLog("LayoutEngine: Activating and unminimizing all apps...")
+        // Activate all apps (but don't blindly unminimize - we'll handle that per-window)
+        NSLog("LayoutEngine: Activating all apps...")
         for (bundleId, _) in windowsByApp {
-            activateAndUnminimizeApp(bundleId: bundleId)
+            if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleId }) {
+                app.activate(options: [.activateIgnoringOtherApps])
+            }
         }
 
         // Small delay after activation
@@ -436,16 +443,114 @@ class LayoutEngine: ObservableObject {
                 }
             }
 
-            // STEP 4: Raise the window to make sure it's visible (not behind other windows)
-            AXUIElementSetAttributeValue(targetWindow, kAXMainAttribute as CFString, true as CFTypeRef)
-            AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString)
+            // STEP 4: Handle minimized state
+            if window.isMinimized {
+                // Window should be minimized - minimize it
+                NSLog("LayoutEngine: Minimizing window (was minimized in saved layout)")
+                AXUIElementSetAttributeValue(targetWindow, kAXMinimizedAttribute as CFString, true as CFTypeRef)
+            } else {
+                // Window should be visible - raise it
+                AXUIElementSetAttributeValue(targetWindow, kAXMainAttribute as CFString, true as CFTypeRef)
+                AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString)
+            }
 
-            NSLog("LayoutEngine: Successfully positioned \(window.appName) '\(window.windowTitle ?? "untitled")'")
+            NSLog("LayoutEngine: Successfully positioned \(window.appName) '\(window.windowTitle ?? "untitled")' (minimized: \(window.isMinimized))")
             return true  // Success
         }
 
         NSLog("LayoutEngine: FAILED to position \(window.appName) after \(retries) attempts")
         return false  // Failed
+    }
+
+    // MARK: - Capture Minimized Windows
+
+    /// Capture minimized windows using Accessibility API
+    private func captureMinimizedWindows(globalZIndexStart: Int) -> [WindowInfo] {
+        var minimizedWindowInfos: [WindowInfo] = []
+        var currentZIndex = globalZIndexStart
+
+        let skipApps = ["Layoutish", "Control Center", "Notification Center", "WindowServer", "Dock", "Finder"]
+
+        for app in NSWorkspace.shared.runningApplications {
+            guard let bundleId = app.bundleIdentifier,
+                  app.activationPolicy == .regular,  // Only regular apps (not background)
+                  !skipApps.contains(app.localizedName ?? "") else {
+                continue
+            }
+
+            let axApp = AXUIElementCreateApplication(app.processIdentifier)
+            var windowsRef: CFTypeRef?
+
+            guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef) == .success,
+                  let axWindows = windowsRef as? [AXUIElement] else {
+                continue
+            }
+
+            var appWindowIndex = 0
+
+            for axWindow in axWindows {
+                // Check if window is minimized
+                var minimizedRef: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimizedRef) == .success,
+                      let isMinimized = minimizedRef as? Bool,
+                      isMinimized else {
+                    appWindowIndex += 1
+                    continue  // Skip non-minimized windows (already captured via CGWindowList)
+                }
+
+                // Get window title
+                var titleRef: CFTypeRef?
+                let windowTitle: String?
+                if AXUIElementCopyAttributeValue(axWindow, kAXTitleAttribute as CFString, &titleRef) == .success {
+                    windowTitle = titleRef as? String
+                } else {
+                    windowTitle = nil
+                }
+
+                // Get window position and size (for when it's restored)
+                var positionRef: CFTypeRef?
+                var sizeRef: CFTypeRef?
+                var position = CGPoint.zero
+                var size = CGSize.zero
+
+                if AXUIElementCopyAttributeValue(axWindow, kAXPositionAttribute as CFString, &positionRef) == .success,
+                   let posValue = positionRef {
+                    AXValueGetValue(posValue as! AXValue, .cgPoint, &position)
+                }
+
+                if AXUIElementCopyAttributeValue(axWindow, kAXSizeAttribute as CFString, &sizeRef) == .success,
+                   let sizeValue = sizeRef {
+                    AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+                }
+
+                // Skip windows with no meaningful size
+                if size.width < 100 || size.height < 100 {
+                    appWindowIndex += 1
+                    continue
+                }
+
+                let frame = CGRect(origin: position, size: size)
+                let displayId = getDisplayIdForWindow(frame: frame)
+
+                let windowInfo = WindowInfo(
+                    appBundleId: bundleId,
+                    appName: app.localizedName ?? "Unknown",
+                    windowTitle: windowTitle,
+                    frame: frame,
+                    displayId: displayId,
+                    windowIndex: appWindowIndex,
+                    zIndex: currentZIndex,
+                    isMinimized: true
+                )
+
+                NSLog("LayoutEngine: Captured MINIMIZED window - \(app.localizedName ?? "Unknown") '\(windowTitle ?? "untitled")'")
+                minimizedWindowInfos.append(windowInfo)
+                currentZIndex += 1
+                appWindowIndex += 1
+            }
+        }
+
+        return minimizedWindowInfos
     }
 
     // MARK: - Helpers

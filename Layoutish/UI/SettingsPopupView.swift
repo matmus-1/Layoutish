@@ -8,13 +8,21 @@
 
 import SwiftUI
 import ServiceManagement
+import Sparkle
 
 struct SettingsPopupView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("launchAppsOnRestore") private var launchAppsOnRestore = true
     @ObservedObject private var permissionsManager = PermissionsManager.shared
     @ObservedObject private var licenseManager = LicenseManager.shared
+    @StateObject private var checkForUpdatesViewModel: CheckForUpdatesViewModel
     @Environment(\.openURL) var openURL
+
+    init() {
+        _checkForUpdatesViewModel = StateObject(wrappedValue: CheckForUpdatesViewModel(
+            updater: UpdateManager.shared.updaterController.updater
+        ))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -236,6 +244,20 @@ struct SettingsPopupView: View {
                     .foregroundStyle(.blue)
                 }
                 .buttonStyle(.plain)
+
+                Button {
+                    checkForUpdatesViewModel.checkForUpdates()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 10))
+                        Text("Check for Updates")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+                .disabled(!checkForUpdatesViewModel.canCheckForUpdates)
             }
             .padding(.top, 4)
         }
