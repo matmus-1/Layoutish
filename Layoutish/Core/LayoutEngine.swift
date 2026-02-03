@@ -28,6 +28,11 @@ class LayoutEngine: ObservableObject {
 
     private init() {}
 
+    // MARK: - Position Tolerance
+
+    /// Tolerance in pixels for considering a position/size "close enough"
+    private let positionTolerance: CGFloat = 5.0
+
     // MARK: - Capture Current Layout
 
     /// Capture all current window positions and create a new layout
@@ -221,16 +226,8 @@ class LayoutEngine: ObservableObject {
             }
         }
 
-        // Activate all apps (but don't blindly unminimize - we'll handle that per-window)
-        NSLog("LayoutEngine: Activating all apps...")
-        for (bundleId, _) in windowsByApp {
-            if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleId }) {
-                app.activate(options: [.activateIgnoringOtherApps])
-            }
-        }
-
-        // Small delay after activation
-        try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+        // NOTE: We no longer "activate all apps" here - it causes visual flicker
+        // Instead, we only raise the frontmost window at the end
 
         // Second pass: Position all windows sorted by zIndex (highest first = backmost first)
         // This ensures frontmost windows (zIndex=0) are raised last and end up on top
@@ -241,9 +238,15 @@ class LayoutEngine: ObservableObject {
         // Sort by zIndex descending (highest zIndex = backmost = positioned first)
         let windowsSorted = layout.windows.sorted { $0.zIndex > $1.zIndex }
 
+        // Find the frontmost window (lowest zIndex among non-minimized windows)
+        let frontmostZIndex = layout.windows
+            .filter { !$0.isMinimized }
+            .map { $0.zIndex }
+            .min() ?? 0
+
         for window in windowsSorted {
-            NSLog("LayoutEngine: Processing '\(window.appName)' '\(window.windowTitle ?? "untitled")' zIndex=\(window.zIndex)")
-            let success = await positionWindow(window, retries: 5)
+            let isFrontmost = (window.zIndex == frontmostZIndex) && !window.isMinimized
+            let success = await positionWindow(window, retries: 5, isFrontmost: isFrontmost)
             if !success {
                 failedWindows.append(window)
             }
@@ -256,7 +259,8 @@ class LayoutEngine: ObservableObject {
 
             for window in failedWindows {
                 NSLog("LayoutEngine: Retrying \(window.appName)...")
-                _ = await positionWindow(window, retries: 5)
+                let isFrontmost = (window.zIndex == frontmostZIndex) && !window.isMinimized
+                _ = await positionWindow(window, retries: 5, isFrontmost: isFrontmost)
             }
         }
 
@@ -344,10 +348,12 @@ class LayoutEngine: ObservableObject {
 
     /// Position a single window using Accessibility APIs
     /// Returns true if successful, false if failed
+    /// - Parameters:
+    ///   - window: The window info to position
+    ///   - retries: Number of retry attempts
+    ///   - isFrontmost: Whether this window should be the frontmost (zIndex == 0)
     @discardableResult
-    private func positionWindow(_ window: WindowInfo, retries: Int = 5) async -> Bool {
-        NSLog("LayoutEngine: Positioning \(window.appName) '\(window.windowTitle ?? "untitled")' -> (\(Int(window.frame.origin.x)), \(Int(window.frame.origin.y))) \(Int(window.frame.width))x\(Int(window.frame.height))")
-
+    private func positionWindow(_ window: WindowInfo, retries: Int = 5, isFrontmost: Bool = false) async -> Bool {
         for attempt in 1...retries {
             // Find the running app
             guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == window.appBundleId }) else {
@@ -372,8 +378,6 @@ class LayoutEngine: ObservableObject {
                 }
                 continue
             }
-
-            NSLog("LayoutEngine: [\(attempt)/\(retries)] Found \(axWindows.count) window(s) for \(window.appName)")
 
             // Try to match window by TITLE first (most reliable)
             var axWindow: AXUIElement?
@@ -408,8 +412,6 @@ class LayoutEngine: ObservableObject {
                 return false
             }
 
-            NSLog("LayoutEngine: Matched window by \(matchedBy)")
-
             // Check current minimized state
             var minimizedRef: CFTypeRef?
             var isCurrentlyMinimized = false
@@ -417,59 +419,98 @@ class LayoutEngine: ObservableObject {
                 isCurrentlyMinimized = (minimizedRef as? Bool) ?? false
             }
 
-            // OPTIMIZATION: If window should stay minimized and is already minimized, skip positioning
+            // OPTIMIZATION: If window should stay minimized and is already minimized, skip entirely
             if window.isMinimized && isCurrentlyMinimized {
-                NSLog("LayoutEngine: Window already minimized and should stay minimized - skipping")
+                NSLog("LayoutEngine: [\(window.appName)] Already minimized - skipping")
                 return true
             }
 
+            // Get current position and size
+            let currentFrame = getCurrentWindowFrame(targetWindow)
+
+            // Check if position and size are already correct (within tolerance)
+            let positionCorrect = abs(currentFrame.origin.x - window.frame.origin.x) <= positionTolerance &&
+                                  abs(currentFrame.origin.y - window.frame.origin.y) <= positionTolerance
+            let sizeCorrect = abs(currentFrame.width - window.frame.width) <= positionTolerance &&
+                              abs(currentFrame.height - window.frame.height) <= positionTolerance
+            let minimizedCorrect = isCurrentlyMinimized == window.isMinimized
+
+            // If everything is already correct, skip (unless we need to raise frontmost)
+            if positionCorrect && sizeCorrect && minimizedCorrect && !isFrontmost {
+                NSLog("LayoutEngine: [\(window.appName)] Already in correct position - skipping")
+                return true
+            }
+
+            // Log what we're actually doing
+            var actions: [String] = []
+            if !positionCorrect { actions.append("position") }
+            if !sizeCorrect { actions.append("size") }
+            if !minimizedCorrect { actions.append(window.isMinimized ? "minimize" : "unminimize") }
+            if isFrontmost { actions.append("raise") }
+
+            NSLog("LayoutEngine: [\(window.appName)] Matched by \(matchedBy), will: \(actions.joined(separator: ", "))")
+
             // STEP 1: Unminimize only if window is minimized BUT should NOT be minimized
             if isCurrentlyMinimized && !window.isMinimized {
-                NSLog("LayoutEngine: Window is minimized but should be visible, unminimizing...")
                 AXUIElementSetAttributeValue(targetWindow, kAXMinimizedAttribute as CFString, false as CFTypeRef)
-                // Wait a moment for the window to unminimize
                 try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
             }
 
-            // STEP 2: Set position
-            var position = CGPoint(x: window.frame.origin.x, y: window.frame.origin.y)
-            if let positionValue = AXValueCreate(.cgPoint, &position) {
-                let posResult = AXUIElementSetAttributeValue(targetWindow, kAXPositionAttribute as CFString, positionValue)
-                if posResult != .success {
-                    NSLog("LayoutEngine: Failed to set position - AX error: \(posResult.rawValue)")
-                } else {
-                    NSLog("LayoutEngine: Position set successfully")
+            // STEP 2: Set position only if needed
+            if !positionCorrect {
+                var position = CGPoint(x: window.frame.origin.x, y: window.frame.origin.y)
+                if let positionValue = AXValueCreate(.cgPoint, &position) {
+                    AXUIElementSetAttributeValue(targetWindow, kAXPositionAttribute as CFString, positionValue)
                 }
             }
 
-            // STEP 3: Set size
-            var size = CGSize(width: window.frame.width, height: window.frame.height)
-            if let sizeValue = AXValueCreate(.cgSize, &size) {
-                let sizeResult = AXUIElementSetAttributeValue(targetWindow, kAXSizeAttribute as CFString, sizeValue)
-                if sizeResult != .success {
-                    NSLog("LayoutEngine: Failed to set size - AX error: \(sizeResult.rawValue)")
-                } else {
-                    NSLog("LayoutEngine: Size set successfully")
+            // STEP 3: Set size only if needed
+            if !sizeCorrect {
+                var size = CGSize(width: window.frame.width, height: window.frame.height)
+                if let sizeValue = AXValueCreate(.cgSize, &size) {
+                    AXUIElementSetAttributeValue(targetWindow, kAXSizeAttribute as CFString, sizeValue)
                 }
             }
 
-            // STEP 4: Handle final minimized state
+            // STEP 4: Handle minimized state
             if window.isMinimized && !isCurrentlyMinimized {
-                // Window should be minimized but isn't - minimize it
-                NSLog("LayoutEngine: Minimizing window (was minimized in saved layout)")
                 AXUIElementSetAttributeValue(targetWindow, kAXMinimizedAttribute as CFString, true as CFTypeRef)
-            } else if !window.isMinimized {
-                // Window should be visible - raise it
+            } else if !window.isMinimized && isFrontmost {
+                // For the frontmost window, we need to:
+                // 1. Activate the app (so it gets focus)
+                // 2. Raise the window
+                // 3. Set it as main window
+                app.activate(options: [.activateIgnoringOtherApps])
                 AXUIElementSetAttributeValue(targetWindow, kAXMainAttribute as CFString, true as CFTypeRef)
                 AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString)
+                NSLog("LayoutEngine: [\(window.appName)] Activated app and raised window to front")
             }
 
-            NSLog("LayoutEngine: Successfully positioned \(window.appName) '\(window.windowTitle ?? "untitled")' (minimized: \(window.isMinimized))")
             return true  // Success
         }
 
         NSLog("LayoutEngine: FAILED to position \(window.appName) after \(retries) attempts")
         return false  // Failed
+    }
+
+    /// Get current window frame from AXUIElement
+    private func getCurrentWindowFrame(_ window: AXUIElement) -> CGRect {
+        var positionRef: CFTypeRef?
+        var sizeRef: CFTypeRef?
+        var position = CGPoint.zero
+        var size = CGSize.zero
+
+        if AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionRef) == .success,
+           let posValue = positionRef {
+            AXValueGetValue(posValue as! AXValue, .cgPoint, &position)
+        }
+
+        if AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef) == .success,
+           let sizeValue = sizeRef {
+            AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+        }
+
+        return CGRect(origin: position, size: size)
     }
 
     // MARK: - Capture Minimized Windows

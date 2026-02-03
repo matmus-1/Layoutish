@@ -40,6 +40,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         Task { @MainActor in
             PermissionsManager.shared.recheckPermissions()
         }
+
+        // Register global hotkeys after a short delay (to let AppState load layouts)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            Task { @MainActor in
+                HotkeyManager.shared.registerAllHotkeys()
+            }
+        }
     }
 
     private func setupMenuBar() {

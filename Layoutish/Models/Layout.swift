@@ -133,15 +133,15 @@ struct Layout: Codable, Identifiable, Equatable {
 extension Layout {
     /// Suggested icons for different layout types
     static let suggestedIcons: [(name: String, symbol: String)] = [
-        ("Coding", "chevron.left.forwardslash.chevron.right"),
-        ("Design", "paintbrush"),
-        ("Writing", "doc.text"),
-        ("Meetings", "video"),
-        ("Research", "magnifyingglass"),
-        ("Communication", "bubble.left.and.bubble.right"),
-        ("Media", "play.rectangle"),
-        ("Finance", "chart.line.uptrend.xyaxis"),
         ("General", "rectangle.3.group"),
-        ("Focus", "eye"),
+        ("Coding", "curlybraces"),
+        ("Design", "paintpalette.fill"),
+        ("Writing", "pencil.line"),
+        ("Meetings", "video.fill"),
+        ("Media", "tv.fill"),
+        ("Communication", "message.fill"),
+        ("Gaming", "gamecontroller.fill"),
+        ("Music", "headphones"),
+        ("Social", "at"),
     ]
 }

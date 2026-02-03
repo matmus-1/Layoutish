@@ -21,6 +21,8 @@ struct LayoutCardView: View {
     @State private var isApplying = false
     @State private var editingName = false
     @State private var editedName: String = ""
+    @State private var editingHotkey = false
+    @State private var isRecordingHotkey = false
 
     /// Check if this layout was the last one applied
     private var isLastApplied: Bool {
@@ -195,11 +197,29 @@ struct LayoutCardView: View {
                     renamePopover
                 }
 
+                // Hotkey button
+                Button(action: {
+                    editingHotkey = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 9))
+                        Text(layout.hotkey ?? "Hotkey")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(layout.hotkey != nil ? Color.brandPurple : .secondary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $editingHotkey) {
+                    hotkeyPopover
+                }
+
                 Spacer()
 
                 // Remove button
                 Button(action: {
                     appState.removeLayout(layout)
+                    HotkeyManager.shared.unregisterHotkey(for: layout.id)
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "trash")
@@ -240,6 +260,55 @@ struct LayoutCardView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(editedName.isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 220)
+    }
+
+    // MARK: - Hotkey Popover
+
+    private var hotkeyPopover: some View {
+        VStack(spacing: 12) {
+            Text("Set Hotkey")
+                .font(.headline)
+
+            Text("Press a key combination")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            // Hotkey recorder
+            HotkeyRecorderView(
+                currentHotkey: layout.hotkey,
+                onHotkeyRecorded: { modifiers, keyCode in
+                    let hotkeyString = HotkeyManager.hotkeyString(modifiers: modifiers, keyCode: keyCode)
+                    appState.updateLayoutHotkey(
+                        id: layout.id,
+                        hotkey: hotkeyString,
+                        modifiers: modifiers,
+                        keyCode: keyCode
+                    )
+                    HotkeyManager.shared.registerHotkey(for: appState.getLayout(by: layout.id)!)
+                    editingHotkey = false
+                }
+            )
+            .frame(height: 36)
+
+            HStack {
+                Button("Clear") {
+                    appState.updateLayoutHotkey(id: layout.id, hotkey: nil, modifiers: nil, keyCode: nil)
+                    HotkeyManager.shared.unregisterHotkey(for: layout.id)
+                    editingHotkey = false
+                }
+                .buttonStyle(.bordered)
+                .disabled(layout.hotkey == nil)
+
+                Spacer()
+
+                Button("Cancel") {
+                    editingHotkey = false
+                }
+                .buttonStyle(.bordered)
             }
         }
         .padding()

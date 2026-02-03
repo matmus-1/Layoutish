@@ -321,15 +321,15 @@ struct NewLayoutSheet: View {
 
     private let iconOptions = [
         "rectangle.3.group",
-        "chevron.left.forwardslash.chevron.right",
-        "paintbrush",
-        "doc.text",
-        "video",
-        "magnifyingglass",
-        "bubble.left.and.bubble.right",
-        "play.rectangle",
-        "chart.line.uptrend.xyaxis",
-        "eye",
+        "curlybraces",
+        "paintpalette.fill",
+        "pencil.line",
+        "video.fill",
+        "tv.fill",
+        "message.fill",
+        "gamecontroller.fill",
+        "headphones",
+        "at",
     ]
 
     var body: some View {
