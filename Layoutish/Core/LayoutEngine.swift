@@ -369,7 +369,30 @@ class LayoutEngine: ObservableObject {
 
             // Get all windows for this app
             var windowsRef: CFTypeRef?
-            let result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
+            var result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
+
+            // If we can't access windows, try activating the app first
+            // macOS often hides AX window info for non-active/background apps (returns empty array or -25211)
+            // Some apps (BBEdit, Ghostty, etc.) need forceful activation to expose their windows
+            if result != .success || windowsRef == nil || (windowsRef as? [AXUIElement])?.isEmpty == true {
+                // Forcefully activate the app to make its windows accessible via Accessibility API
+                app.activate(options: [.activateIgnoringOtherApps])
+                try? await Task.sleep(nanoseconds: 250_000_000)  // 0.25 seconds
+
+                // Retry getting windows after activation
+                windowsRef = nil
+                result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
+
+                // If still no windows, try unhiding the app (some apps hide instead of minimize)
+                if result != .success || windowsRef == nil || (windowsRef as? [AXUIElement])?.isEmpty == true {
+                    app.unhide()
+                    app.activate(options: [.activateIgnoringOtherApps])
+                    try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
+
+                    windowsRef = nil
+                    result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
+                }
+            }
 
             guard result == .success, let axWindows = windowsRef as? [AXUIElement], !axWindows.isEmpty else {
                 NSLog("LayoutEngine: [\(attempt)/\(retries)] No windows yet for \(window.appName) (AX result: \(result.rawValue))")
