@@ -359,7 +359,7 @@ class LayoutEngine: ObservableObject {
             guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == window.appBundleId }) else {
                 NSLog("LayoutEngine: [\(attempt)/\(retries)] App not running: \(window.appName)")
                 if attempt < retries {
-                    try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1.0 second
                 }
                 continue
             }
@@ -367,27 +367,46 @@ class LayoutEngine: ObservableObject {
             let pid = app.processIdentifier
             let axApp = AXUIElementCreateApplication(pid)
 
+            // Pre-activation ONLY for windows that need to be UN-minimized
+            // Apps like Ghostty, Chrome need activation to expose their windows via AX API
+            // BUT: If window should STAY minimized, skip pre-activation entirely (we'll just verify it's still minimized)
+            // This avoids 0.8s delay for every minimized window that doesn't need changes
+            if !window.isMinimized && attempt == 1 {
+                // Window should be visible - pre-activate in case app is hiding windows
+                NSLog("LayoutEngine: [\(window.appName)] Pre-activating to access windows...")
+                app.unhide()
+                app.activate(options: [.activateIgnoringOtherApps])
+                try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second pre-activation delay
+            }
+
             // Get all windows for this app
             var windowsRef: CFTypeRef?
             var result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
 
             // If we can't access windows, try activating the app first
             // macOS often hides AX window info for non-active/background apps (returns empty array or -25211)
-            // Some apps (BBEdit, Ghostty, etc.) need forceful activation to expose their windows
+            // Some apps (Ghostty, Chrome, etc.) need forceful activation AND longer delays to expose their windows
+            // This is especially true for GPU-accelerated terminal apps and browsers when minimized
             if result != .success || windowsRef == nil || (windowsRef as? [AXUIElement])?.isEmpty == true {
                 // Forcefully activate the app to make its windows accessible via Accessibility API
+                app.unhide()  // Unhide first in case it's hidden
                 app.activate(options: [.activateIgnoringOtherApps])
-                try? await Task.sleep(nanoseconds: 250_000_000)  // 0.25 seconds
+
+                // Longer delay for apps that need time to expose windows (especially when previously minimized)
+                // Apps like Ghostty, Chrome need ~1 second after activation
+                try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1.0 second
 
                 // Retry getting windows after activation
                 windowsRef = nil
                 result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
 
-                // If still no windows, try unhiding the app (some apps hide instead of minimize)
+                // If still no windows, try clicking the dock icon via Accessibility API
+                // This works for stubborn apps like Ghostty that don't expose minimized windows
+                // Uses Accessibility permission (which we have) - no Automation permission needed
                 if result != .success || windowsRef == nil || (windowsRef as? [AXUIElement])?.isEmpty == true {
-                    app.unhide()
-                    app.activate(options: [.activateIgnoringOtherApps])
-                    try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
+                    NSLog("LayoutEngine: [\(window.appName)] Windows still empty, clicking dock icon via Accessibility...")
+                    await forceUnminimizeViaActivation(bundleId: window.appBundleId, appName: window.appName)
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1.0 second for window to appear
 
                     windowsRef = nil
                     result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
@@ -397,7 +416,8 @@ class LayoutEngine: ObservableObject {
             guard result == .success, let axWindows = windowsRef as? [AXUIElement], !axWindows.isEmpty else {
                 NSLog("LayoutEngine: [\(attempt)/\(retries)] No windows yet for \(window.appName) (AX result: \(result.rawValue))")
                 if attempt < retries {
-                    try? await Task.sleep(nanoseconds: 800_000_000)  // 0.8 seconds
+                    // Longer delay between retries - apps like Ghostty/Chrome need more time
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)  // 1.5 seconds
                 }
                 continue
             }
@@ -628,6 +648,83 @@ class LayoutEngine: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    /// Click an app's dock icon using Accessibility API to unminimize its windows
+    /// This uses Accessibility permission (which we have) rather than Automation permission
+    private func clickDockIconViaAccessibility(appName: String) {
+        // Find the Dock process
+        guard let dockApp = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.dock" }) else {
+            NSLog("LayoutEngine: Could not find Dock process")
+            return
+        }
+
+        let dockAx = AXUIElementCreateApplication(dockApp.processIdentifier)
+
+        // Get the Dock's children (the dock items list)
+        var childrenRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(dockAx, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement] else {
+            NSLog("LayoutEngine: Could not get Dock children")
+            return
+        }
+
+        // Find the list containing app icons (usually the first list)
+        for child in children {
+            var roleRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
+               let role = roleRef as? String, role == "AXList" {
+
+                // Get items in the list
+                var itemsRef: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(child, kAXChildrenAttribute as CFString, &itemsRef) == .success,
+                      let items = itemsRef as? [AXUIElement] else {
+                    continue
+                }
+
+                // Find the app icon by title
+                for item in items {
+                    var titleRef: CFTypeRef?
+                    if AXUIElementCopyAttributeValue(item, kAXTitleAttribute as CFString, &titleRef) == .success,
+                       let title = titleRef as? String, title == appName {
+                        // Found it! Perform press action
+                        let pressResult = AXUIElementPerformAction(item, kAXPressAction as CFString)
+                        if pressResult == .success {
+                            NSLog("LayoutEngine: Clicked dock icon for \(appName) via Accessibility API")
+                        } else {
+                            NSLog("LayoutEngine: Failed to click dock icon for \(appName): \(pressResult.rawValue)")
+                        }
+                        return
+                    }
+                }
+            }
+        }
+
+        NSLog("LayoutEngine: Could not find \(appName) in Dock")
+    }
+
+    /// Force unminimize windows for an app by aggressively activating it
+    /// Uses only APIs that work with Accessibility permission (no Automation needed)
+    private func forceUnminimizeViaActivation(bundleId: String, appName: String) async {
+        guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleId }) else {
+            NSLog("LayoutEngine: App not found for force unminimize: \(appName)")
+            return
+        }
+
+        NSLog("LayoutEngine: Force unminimizing \(appName) via repeated activation...")
+
+        // Aggressive activation sequence
+        app.unhide()
+        app.activate(options: [.activateIgnoringOtherApps])
+
+        // Try clicking the dock icon via Accessibility API
+        clickDockIconViaAccessibility(appName: appName)
+
+        // Give it time to respond
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        // Activate again after dock click
+        app.activate(options: [.activateIgnoringOtherApps])
+    }
 
     /// Get the display ID for a given window frame
     private func getDisplayIdForWindow(frame: CGRect) -> UInt32 {
