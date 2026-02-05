@@ -229,14 +229,9 @@ class LayoutEngine: ObservableObject {
         // NOTE: We no longer "activate all apps" here - it causes visual flicker
         // Instead, we only raise the frontmost window at the end
 
-        // Second pass: Position all windows sorted by zIndex (highest first = backmost first)
-        // This ensures frontmost windows (zIndex=0) are raised last and end up on top
-        NSLog("LayoutEngine: Positioning windows by z-order (backmost first, frontmost last)...")
-
-        var failedWindows: [WindowInfo] = []
-
-        // Sort by zIndex descending (highest zIndex = backmost = positioned first)
-        let windowsSorted = layout.windows.sorted { $0.zIndex > $1.zIndex }
+        // Second pass: Position all windows IN PARALLEL for speed
+        // Only the frontmost window is processed last (so it ends up on top)
+        NSLog("LayoutEngine: Positioning windows in parallel...")
 
         // Find the frontmost window (lowest zIndex among non-minimized windows)
         let frontmostZIndex = layout.windows
@@ -244,23 +239,52 @@ class LayoutEngine: ObservableObject {
             .map { $0.zIndex }
             .min() ?? 0
 
-        for window in windowsSorted {
-            let isFrontmost = (window.zIndex == frontmostZIndex) && !window.isMinimized
-            let success = await positionWindow(window, retries: 5, isFrontmost: isFrontmost)
-            if !success {
-                failedWindows.append(window)
+        // Separate frontmost window from the rest
+        let frontmostWindow = layout.windows.first { $0.zIndex == frontmostZIndex && !$0.isMinimized }
+        let otherWindows = layout.windows.filter { window in
+            !(window.zIndex == frontmostZIndex && !window.isMinimized)
+        }
+
+        // Process all non-frontmost windows in parallel
+        var failedWindows: [WindowInfo] = []
+
+        await withTaskGroup(of: (WindowInfo, Bool).self) { group in
+            for window in otherWindows {
+                group.addTask {
+                    let success = await self.positionWindow(window, retries: 5, isFrontmost: false)
+                    return (window, success)
+                }
+            }
+
+            // Collect results
+            for await (window, success) in group {
+                if !success {
+                    failedWindows.append(window)
+                }
             }
         }
 
-        // Third pass: Retry failed windows after additional delay (for slow apps like Ghostty)
-        if !failedWindows.isEmpty {
-            NSLog("LayoutEngine: \(failedWindows.count) window(s) failed, waiting 5s then retrying...")
-            try? await Task.sleep(nanoseconds: 5_000_000_000)  // 5 more seconds
+        // Process frontmost window LAST so it ends up on top
+        if let frontmost = frontmostWindow {
+            let success = await positionWindow(frontmost, retries: 5, isFrontmost: true)
+            if !success {
+                failedWindows.append(frontmost)
+            }
+        }
 
-            for window in failedWindows {
-                NSLog("LayoutEngine: Retrying \(window.appName)...")
-                let isFrontmost = (window.zIndex == frontmostZIndex) && !window.isMinimized
-                _ = await positionWindow(window, retries: 5, isFrontmost: isFrontmost)
+        // Third pass: Retry failed windows in parallel after additional delay
+        if !failedWindows.isEmpty {
+            NSLog("LayoutEngine: \(failedWindows.count) window(s) failed, waiting 3s then retrying in parallel...")
+            try? await Task.sleep(nanoseconds: 3_000_000_000)  // 3 seconds
+
+            await withTaskGroup(of: Void.self) { group in
+                for window in failedWindows {
+                    group.addTask {
+                        NSLog("LayoutEngine: Retrying \(window.appName)...")
+                        let isFrontmost = (window.zIndex == frontmostZIndex) && !window.isMinimized
+                        _ = await self.positionWindow(window, retries: 5, isFrontmost: isFrontmost)
+                    }
+                }
             }
         }
 
