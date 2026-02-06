@@ -68,18 +68,24 @@ class PermissionsManager: ObservableObject {
     // MARK: - Permission Checking
 
     func recheckPermissions() {
-        let isAccessibilityGranted = AXIsProcessTrusted()
-        let newStatus: PermissionStatus = isAccessibilityGranted ? .granted : .denied
+        // Run AXIsProcessTrusted() off main thread to avoid blocking UI (can take 50-100ms)
+        Task.detached {
+            let isAccessibilityGranted = AXIsProcessTrusted()
+            let newStatus: PermissionStatus = isAccessibilityGranted ? .granted : .denied
 
-        // Only log and update if status changed
-        if newStatus != previousStatus {
-            NSLog("PermissionsManager: Accessibility changed to \(isAccessibilityGranted ? "GRANTED" : "denied")")
-            previousStatus = newStatus
-            accessibilityStatus = newStatus
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                // Only log and update if status changed
+                if newStatus != self.previousStatus {
+                    NSLog("PermissionsManager: Accessibility changed to \(isAccessibilityGranted ? "GRANTED" : "denied")")
+                    self.previousStatus = newStatus
+                    self.accessibilityStatus = newStatus
 
-            // Stop polling once granted
-            if isAccessibilityGranted {
-                stopPolling()
+                    // Stop polling once granted
+                    if isAccessibilityGranted {
+                        self.stopPolling()
+                    }
+                }
             }
         }
     }
@@ -114,7 +120,7 @@ class PermissionsManager: ObservableObject {
 
     private func startPermissionPolling() {
         NSLog("PermissionsManager: Starting permission polling")
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor [weak self] in
                 self?.recheckPermissions()

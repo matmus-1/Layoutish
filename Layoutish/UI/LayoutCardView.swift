@@ -309,7 +309,7 @@ struct LayoutCardView: View {
 
                     if !displayProfileManager.profiles.isEmpty {
                         Button(action: {
-                            showProfilePicker = true
+                            showProfilePicker.toggle()
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "display")
@@ -321,9 +321,6 @@ struct LayoutCardView: View {
                             .foregroundStyle(!associatedProfiles.isEmpty ? Color.brandPurple : .secondary)
                         }
                         .buttonStyle(.plain)
-                        .popover(isPresented: $showProfilePicker) {
-                            profilePickerPopover
-                        }
                     }
 
                     Spacer()
@@ -370,6 +367,67 @@ struct LayoutCardView: View {
                 }
             }
             .padding(.horizontal, 12)
+
+            // Inline profile picker section
+            if showProfilePicker {
+                VStack(spacing: 8) {
+                    Divider().opacity(0.3)
+
+                    Text("Set as Profile Default")
+                        .font(.system(size: 12, weight: .medium))
+
+                    Text("Auto-apply this layout when a display profile is detected")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(displayProfileManager.profiles) { profile in
+                        Button {
+                            let isAlreadySet = profile.defaultLayoutId == layout.id
+                            displayProfileManager.setDefaultLayout(
+                                profileId: profile.id,
+                                layoutId: isAlreadySet ? nil : layout.id
+                            )
+                            showProfilePicker = false
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: profile.fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
+                                    .font(.system(size: 14))
+                                    .frame(width: 18)
+
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(profile.name)
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text(profile.displayDescription)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                }
+
+                                Spacer()
+
+                                if profile.defaultLayoutId == layout.id {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(Color.brandPurple)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button("Done") {
+                        showProfilePicker = false
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .transition(.opacity)
+            }
 
             // Inline hotkey recording section
             if editingHotkey {
@@ -424,59 +482,6 @@ struct LayoutCardView: View {
 
             Spacer().frame(height: 8)
         }
-    }
-
-    // MARK: - Profile Picker Popover
-
-    private var profilePickerPopover: some View {
-        VStack(spacing: 12) {
-            Text("Set as Profile Default")
-                .font(.headline)
-
-            Text("Auto-apply this layout when a display profile is detected")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            ForEach(displayProfileManager.profiles) { profile in
-                Button {
-                    let isAlreadySet = profile.defaultLayoutId == layout.id
-                    displayProfileManager.setDefaultLayout(
-                        profileId: profile.id,
-                        layoutId: isAlreadySet ? nil : layout.id
-                    )
-                    showProfilePicker = false
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: profile.fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
-                            .font(.system(size: 14))
-                            .frame(width: 18)
-
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(profile.name)
-                                .font(.system(size: 13, weight: .medium))
-                            Text(profile.displayDescription)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-
-                        if profile.defaultLayoutId == layout.id {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(Color.brandPurple)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding()
-        .frame(width: 260)
     }
 
     // MARK: - Actions

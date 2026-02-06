@@ -25,50 +25,32 @@ struct SettingsPopupView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack {
-                Text("Settings")
-                    .font(.headline)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+        VStack(alignment: .leading, spacing: 16) {
+            // GENERAL Section
+            generalSection
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // LICENSE Section
-                    licenseSection
+            // BEHAVIOR Section
+            behaviorSection
 
-                    Divider()
+            Divider()
 
-                    // GENERAL Section
-                    generalSection
+            // PERMISSIONS Section
+            permissionsSection
 
-                    Divider()
+            Divider()
 
-                    // BEHAVIOR Section
-                    behaviorSection
+            // LICENSE Section
+            licenseSection
 
-                    Divider()
+            Divider()
 
-                    // PERMISSIONS Section
-                    permissionsSection
-
-                    Divider()
-
-                    // ABOUT Section
-                    aboutSection
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            }
-            .frame(maxHeight: 400)
+            // ABOUT Section
+            aboutSection
         }
-        .frame(width: 300)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .onAppear {
             // Sync the toggle with actual launch at login status
             launchAtLogin = getLaunchAtLoginStatus()

@@ -27,8 +27,14 @@ struct MenuBarDropdownView: View {
     @ObservedObject private var licenseManager = LicenseManager.shared
     @ObservedObject private var displayProfileManager = DisplayProfileManager.shared
 
-    @State private var showSettingsPopover = false
-    @State private var showSchedulePopover = false
+    // View mode — replaces nested .popover() to avoid NSPopover responder chain deadlock
+    enum ViewMode: Equatable {
+        case layouts
+        case settings
+        case schedule
+    }
+
+    @State private var viewMode: ViewMode = .layouts
     @State private var showNewLayoutSheet = false
     @State private var showNewProfileSheet = false
     @State private var newLayoutName = ""
@@ -39,6 +45,78 @@ struct MenuBarDropdownView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            switch viewMode {
+            case .layouts:
+                layoutsMainView
+            case .settings:
+                inlineSubView(title: "Settings") {
+                    SettingsPopupView()
+                }
+            case .schedule:
+                inlineSubView(title: "Scheduling") {
+                    ScheduleSettingsSection()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                }
+            }
+        }
+        .frame(width: 350)
+        .background(.ultraThinMaterial)
+        .sheet(isPresented: $showNewLayoutSheet) {
+            NewLayoutSheet(isPresented: $showNewLayoutSheet)
+        }
+    }
+
+    // MARK: - Inline Sub-View Wrapper (replaces nested popovers)
+
+    private func inlineSubView<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            // Back header
+            HStack {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        viewMode = .layouts
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Back")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+
+                Spacer()
+
+                // Invisible spacer to center title
+                Text("Back")
+                    .font(.system(size: 12))
+                    .hidden()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+
+            Divider()
+
+            ScrollView {
+                content()
+            }
+            .frame(maxHeight: 420)
+        }
+    }
+
+    // MARK: - Layouts Main View
+
+    private var layoutsMainView: some View {
         VStack(spacing: 0) {
             // Header
             headerSection
@@ -69,11 +147,6 @@ struct MenuBarDropdownView: View {
 
             // Footer with actions
             footerSection
-        }
-        .frame(width: 350)
-        .background(.ultraThinMaterial)
-        .sheet(isPresented: $showNewLayoutSheet) {
-            NewLayoutSheet(isPresented: $showNewLayoutSheet)
         }
     }
 
@@ -116,8 +189,8 @@ struct MenuBarDropdownView: View {
 
     private var licenseWarningBanner: some View {
         Button(action: {
-            // Open settings popover to show license input
-            showSettingsPopover = true
+            // Navigate to settings to show license input
+            viewMode = .settings
         }) {
             HStack(spacing: 10) {
                 Image(systemName: "key.fill")
@@ -409,7 +482,9 @@ struct MenuBarDropdownView: View {
             HStack {
                 // Settings button
                 Button {
-                    showSettingsPopover.toggle()
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        viewMode = .settings
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "gear")
@@ -420,13 +495,12 @@ struct MenuBarDropdownView: View {
                     .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .popover(isPresented: $showSettingsPopover, arrowEdge: .bottom) {
-                    SettingsPopupView()
-                }
 
                 // Schedule button
                 Button {
-                    showSchedulePopover.toggle()
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        viewMode = .schedule
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
@@ -437,9 +511,6 @@ struct MenuBarDropdownView: View {
                     .foregroundStyle(ScheduleManager.shared.isEnabled ? Color.brandPurple : .secondary)
                 }
                 .buttonStyle(.plain)
-                .popover(isPresented: $showSchedulePopover, arrowEdge: .bottom) {
-                    SchedulePopoverView()
-                }
 
                 Spacer()
 
