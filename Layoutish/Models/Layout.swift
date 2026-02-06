@@ -53,6 +53,10 @@ struct MonitorConfiguration: Codable, Equatable {
     let displayIds: [UInt32]
     let description: String  // Human-readable, e.g., "MacBook Pro + Dell U2720Q"
 
+    // NEW — optional to preserve backwards compatibility with existing saved layouts
+    var displayResolutions: [DisplayResolution]?
+    var displayNames: [String]?
+
     static func current() -> MonitorConfiguration {
         let screens = NSScreen.screens
         let displayIds = screens.compactMap { screen -> UInt32? in
@@ -64,13 +68,23 @@ struct MonitorConfiguration: Codable, Equatable {
         }
 
         let description = screens.map { $0.localizedName }.joined(separator: " + ")
+        let resolutions = screens.map { DisplayResolution(width: Int($0.frame.width), height: Int($0.frame.height)) }
+        let names = screens.map { $0.localizedName }
 
         return MonitorConfiguration(
             displayCount: screens.count,
             displayIds: displayIds,
-            description: description
+            description: description,
+            displayResolutions: resolutions,
+            displayNames: names
         )
     }
+}
+
+/// Resolution of a single display (for MonitorConfiguration)
+struct DisplayResolution: Codable, Equatable {
+    let width: Int
+    let height: Int
 }
 
 // MARK: - Layout
@@ -123,8 +137,34 @@ struct Layout: Codable, Identifiable, Equatable {
     }
 
     /// Check if monitor configuration matches current setup
+    /// Uses fuzzy matching: if display names and resolutions match, returns true
+    /// even if display IDs changed (which happens after reboots)
     var matchesCurrentMonitors: Bool {
-        monitorConfig == MonitorConfiguration.current()
+        let current = MonitorConfiguration.current()
+
+        // Exact match (original behavior)
+        if monitorConfig == current {
+            return true
+        }
+
+        // Fuzzy match: same count + same names + same resolutions
+        if monitorConfig.displayCount == current.displayCount {
+            // Try matching by names if available
+            if let savedNames = monitorConfig.displayNames,
+               let currentNames = current.displayNames,
+               Set(savedNames) == Set(currentNames) {
+                return true
+            }
+
+            // Try matching by resolutions if available
+            if let savedRes = monitorConfig.displayResolutions,
+               let currentRes = current.displayResolutions,
+               Set(savedRes.map { "\($0.width)x\($0.height)" }) == Set(currentRes.map { "\($0.width)x\($0.height)" }) {
+                return true
+            }
+        }
+
+        return false
     }
 }
 

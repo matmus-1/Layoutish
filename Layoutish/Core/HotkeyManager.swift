@@ -21,6 +21,8 @@ class HotkeyManager {
     private var registeredHotkeys: [UUID: EventHotKeyRef] = [:]
     private var hotkeyIDToLayoutID: [UInt32: UUID] = [:]
     private var nextHotkeyID: UInt32 = 1
+    private var quickSwitcherHotkeyRef: EventHotKeyRef?
+    private let quickSwitcherHotkeyID: UInt32 = 9999
 
     // MARK: - Initialization
 
@@ -148,6 +150,15 @@ class HotkeyManager {
     // MARK: - Hotkey Handling
 
     private func handleHotkey(id: UInt32) {
+        // Check if it's the Quick Switcher hotkey
+        if id == quickSwitcherHotkeyID {
+            NSLog("HotkeyManager: Quick Switcher hotkey triggered")
+            Task { @MainActor in
+                QuickSwitcherManager.shared.toggle()
+            }
+            return
+        }
+
         guard let layoutID = hotkeyIDToLayoutID[id],
               let layout = AppState.shared.getLayout(by: layoutID) else {
             NSLog("HotkeyManager: Unknown hotkey ID: \(id)")
@@ -157,8 +168,41 @@ class HotkeyManager {
         NSLog("HotkeyManager: Hotkey triggered for layout '\(layout.name)'")
 
         // Apply the layout
-        Task {
+        Task { @MainActor in
             await LayoutEngine.shared.applyLayout(layout)
+            AppState.shared.markLayoutAsApplied(layout.id)
+        }
+    }
+
+    // MARK: - Quick Switcher Hotkey
+
+    /// Register the ⌘⇧L hotkey for the Quick Switcher
+    func registerQuickSwitcherHotkey() {
+        // Unregister if already registered
+        if let ref = quickSwitcherHotkeyRef {
+            UnregisterEventHotKey(ref)
+            quickSwitcherHotkeyRef = nil
+        }
+
+        // ⌘⇧L: Command + Shift + L (keyCode 37)
+        let carbonMods = UInt32(cmdKey) | UInt32(shiftKey)
+        let hotkeyID = EventHotKeyID(signature: OSType(0x4C59_5448), id: quickSwitcherHotkeyID)
+
+        var hotkeyRef: EventHotKeyRef?
+        let status = RegisterEventHotKey(
+            37, // L key
+            carbonMods,
+            hotkeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotkeyRef
+        )
+
+        if status == noErr, let ref = hotkeyRef {
+            quickSwitcherHotkeyRef = ref
+            NSLog("HotkeyManager: Registered Quick Switcher hotkey ⌘⇧L")
+        } else {
+            NSLog("HotkeyManager: Failed to register Quick Switcher hotkey - status: \(status)")
         }
     }
 

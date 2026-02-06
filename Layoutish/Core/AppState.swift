@@ -22,16 +22,19 @@ class AppState: ObservableObject {
     @Published var layouts: [Layout] = []
     @Published var isCapturingLayout: Bool = false
     @Published var lastAppliedLayoutId: UUID?
+    @Published var recentlyAppliedIds: [UUID] = []
 
     // MARK: - Private Properties
 
     private let storageKey = "com.appish.layoutish.layouts"
+    private let recentKey = "com.appish.layoutish.recentlyApplied"
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Initialization
 
     private init() {
         loadLayouts()
+        loadRecentlyApplied()
 
         // Auto-save when layouts change
         $layouts
@@ -93,9 +96,35 @@ class AppState: ObservableObject {
         }
     }
 
+    /// Duplicate a layout with a new UUID and "(Copy)" suffix
+    func duplicateLayout(_ layout: Layout) {
+        let copy = Layout(
+            name: layout.name + " (Copy)",
+            icon: layout.icon,
+            hotkey: nil,
+            hotkeyModifiers: nil,
+            hotkeyKeyCode: nil,
+            monitorConfig: layout.monitorConfig,
+            windows: layout.windows
+        )
+        addLayout(copy)
+        NSLog("AppState: Duplicated layout '\(layout.name)' -> '\(copy.name)'")
+    }
+
     /// Get layout by ID
     func getLayout(by id: UUID) -> Layout? {
         layouts.first { $0.id == id }
+    }
+
+    /// Track a layout as recently applied (max 5, most recent first)
+    func markLayoutAsApplied(_ layoutId: UUID) {
+        lastAppliedLayoutId = layoutId
+        recentlyAppliedIds.removeAll { $0 == layoutId }
+        recentlyAppliedIds.insert(layoutId, at: 0)
+        if recentlyAppliedIds.count > 5 {
+            recentlyAppliedIds = Array(recentlyAppliedIds.prefix(5))
+        }
+        saveRecentlyApplied()
     }
 
     /// Reorder layouts
@@ -127,6 +156,18 @@ class AppState: ObservableObject {
         } catch {
             NSLog("AppState: Failed to load layouts - \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Recent Persistence
+
+    private func saveRecentlyApplied() {
+        let strings = recentlyAppliedIds.map { $0.uuidString }
+        UserDefaults.standard.set(strings, forKey: recentKey)
+    }
+
+    private func loadRecentlyApplied() {
+        guard let strings = UserDefaults.standard.stringArray(forKey: recentKey) else { return }
+        recentlyAppliedIds = strings.compactMap { UUID(uuidString: $0) }
     }
 
     // MARK: - Export/Import

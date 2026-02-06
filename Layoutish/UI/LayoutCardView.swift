@@ -15,14 +15,22 @@ struct LayoutCardView: View {
     @ObservedObject var appState = AppState.shared
     @ObservedObject var layoutEngine = LayoutEngine.shared
     @ObservedObject var permissionsManager = PermissionsManager.shared
+    @ObservedObject var displayProfileManager = DisplayProfileManager.shared
 
     @State private var isHovered = false
     @State private var isExpanded = false
     @State private var isApplying = false
+    @State private var appliedSuccessfully = false
     @State private var editingName = false
     @State private var editedName: String = ""
     @State private var editingHotkey = false
-    @State private var isRecordingHotkey = false
+    @State private var showProfilePicker = false
+    @State private var showDeleteConfirmation = false
+
+    /// Display profiles that use this layout as their default
+    private var associatedProfiles: [DisplayProfile] {
+        displayProfileManager.profiles.filter { $0.defaultLayoutId == layout.id }
+    }
 
     /// Check if this layout was the last one applied
     private var isLastApplied: Bool {
@@ -33,42 +41,97 @@ struct LayoutCardView: View {
         VStack(spacing: 0) {
             // Main row - clickable to expand/collapse
             HStack(spacing: 12) {
-                // Layout icon
+                // Layout thumbnail (or icon fallback for empty layouts)
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(isLastApplied ? Color.successGreenBackground : Color.brandPurpleBackground)
                         .frame(width: 35, height: 35)
 
-                    Image(systemName: layout.icon)
-                        .font(.system(size: 16))
-                        .foregroundColor(isLastApplied ? Color.successGreen : Color.brandPurple)
+                    if layout.windows.isEmpty {
+                        Image(systemName: layout.icon)
+                            .font(.system(size: 16))
+                            .foregroundColor(isLastApplied ? Color.successGreen : Color.brandPurple)
+                    } else {
+                        LayoutThumbnailView(layout: layout, size: 35)
+                    }
                 }
 
                 // Layout name and info
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(layout.name)
-                            .font(.system(size: 12, weight: .medium))
-                            .lineLimit(1)
+                        if editingName {
+                            // Inline rename field
+                            TextField("Name", text: $editedName, onCommit: {
+                                if !editedName.isEmpty {
+                                    appState.renameLayout(id: layout.id, newName: editedName)
+                                }
+                                editingName = false
+                            })
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11))
+                            .frame(maxWidth: 120)
 
-                        // Hotkey badge if set
-                        if let hotkey = layout.hotkey {
-                            Text(hotkey)
-                                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.secondary.opacity(0.1))
-                                )
+                            Button(action: {
+                                if !editedName.isEmpty {
+                                    appState.renameLayout(id: layout.id, newName: editedName)
+                                }
+                                editingName = false
+                            }) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.green)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(action: { editingName = false }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Text(layout.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
+
+                            // Hotkey badge if set
+                            if let hotkey = layout.hotkey {
+                                Text(hotkey)
+                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.secondary.opacity(0.1))
+                                    )
+                            }
                         }
                     }
 
-                    // Window count and monitor info
-                    Text("\(layout.windowCount) windows • \(layout.uniqueApps.count) apps")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                    // Window count, monitor info, and profile badge
+                    HStack(spacing: 4) {
+                        Text("\(layout.windowCount) windows • \(layout.uniqueApps.count) apps")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+
+                        // Show display profile badge if this layout is a default
+                        if let firstProfile = associatedProfiles.first {
+                            HStack(spacing: 2) {
+                                Image(systemName: firstProfile.fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
+                                    .font(.system(size: 7))
+                                Text(firstProfile.name)
+                                    .font(.system(size: 8))
+                            }
+                            .foregroundColor(Color.brandPurple)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.brandPurpleBackground)
+                            )
+                        }
+                    }
                 }
 
                 Spacer()
@@ -79,6 +142,20 @@ struct LayoutCardView: View {
                         ProgressView()
                             .scaleEffect(0.6)
                             .frame(width: 50, height: 24)
+                    } else if appliedSuccessfully {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Applied!")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundColor(Color.successGreen)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.successGreenBackground)
+                        )
                     } else {
                         Text(isLastApplied ? "Active" : "Apply")
                             .font(.system(size: 10, weight: .medium))
@@ -93,6 +170,7 @@ struct LayoutCardView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!permissionsManager.canProceed || isApplying)
+                .animation(.easeInOut(duration: 0.2), value: appliedSuccessfully)
 
                 // Expand/collapse chevron
                 Image(systemName: "chevron.down")
@@ -120,6 +198,11 @@ struct LayoutCardView: View {
         )
         .onHover { hovering in
             isHovered = hovering
+        }
+        .onChange(of: isExpanded) { expanded in
+            if !expanded {
+                showDeleteConfirmation = false
+            }
         }
     }
 
@@ -164,155 +247,236 @@ struct LayoutCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
 
-            // Action buttons row
-            HStack(spacing: 12) {
-                // Update positions button
-                Button(action: updateLayout) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 9))
-                        Text("Update")
-                            .font(.system(size: 10))
+            // Action buttons — two rows
+            VStack(spacing: 6) {
+                // Row 1: Update, Rename, Duplicate, Hotkey
+                HStack(spacing: 12) {
+                    Button(action: updateLayout) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 9))
+                            Text("Update")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundColor(Color.brandPurple)
                     }
-                    .foregroundColor(Color.brandPurple)
-                }
-                .buttonStyle(.plain)
-                .help("Update this layout with current window positions")
+                    .buttonStyle(.plain)
 
-                // Rename button
-                Button(action: {
-                    editedName = layout.name
-                    editingName = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 9))
-                        Text("Rename")
-                            .font(.system(size: 10))
+                    Button(action: {
+                        editedName = layout.name
+                        editingName = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 9))
+                            Text("Rename")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $editingName) {
-                    renamePopover
-                }
+                    .buttonStyle(.plain)
 
-                // Hotkey button
-                Button(action: {
-                    editingHotkey = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "keyboard")
-                            .font(.system(size: 9))
-                        Text(layout.hotkey ?? "Hotkey")
-                            .font(.system(size: 10))
+                    Button(action: {
+                        appState.duplicateLayout(layout)
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "square.on.square")
+                                .font(.system(size: 9))
+                            Text("Duplicate")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(layout.hotkey != nil ? Color.brandPurple : .secondary)
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $editingHotkey) {
-                    hotkeyPopover
+                    .buttonStyle(.plain)
+
+                    Spacer()
                 }
 
-                Spacer()
-
-                // Remove button
-                Button(action: {
-                    appState.removeLayout(layout)
-                    HotkeyManager.shared.unregisterHotkey(for: layout.id)
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 9))
-                        Text("Remove")
-                            .font(.system(size: 10))
+                // Row 2: Hotkey, Desk Setup, Remove
+                HStack(spacing: 12) {
+                    Button(action: {
+                        editingHotkey = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "keyboard")
+                                .font(.system(size: 9))
+                            Text(layout.hotkey ?? "Hotkey")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(layout.hotkey != nil ? Color.brandPurple : .secondary)
                     }
-                    .foregroundColor(.red.opacity(0.8))
+                    .buttonStyle(.plain)
+
+                    if !displayProfileManager.profiles.isEmpty {
+                        Button(action: {
+                            showProfilePicker = true
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "display")
+                                    .font(.system(size: 9))
+                                Text(associatedProfiles.isEmpty ? "Desk Setup" : associatedProfiles.first!.name)
+                                    .font(.system(size: 10))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(!associatedProfiles.isEmpty ? Color.brandPurple : .secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $showProfilePicker) {
+                            profilePickerPopover
+                        }
+                    }
+
+                    Spacer()
+
+                    // Delete with confirmation
+                    if showDeleteConfirmation {
+                        HStack(spacing: 6) {
+                            Text("Delete?")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.red)
+
+                            Button(action: {
+                                appState.removeLayout(layout)
+                                HotkeyManager.shared.unregisterHotkey(for: layout.id)
+                            }) {
+                                Text("Yes")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.red))
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(action: { showDeleteConfirmation = false }) {
+                                Text("No")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } else {
+                        Button(action: { showDeleteConfirmation = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 9))
+                                Text("Remove")
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundColor(.red.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-        }
-    }
 
-    // MARK: - Rename Popover
+            // Inline hotkey recording section
+            if editingHotkey {
+                VStack(spacing: 8) {
+                    Divider().opacity(0.3)
 
-    private var renamePopover: some View {
-        VStack(spacing: 12) {
-            Text("Rename Layout")
-                .font(.headline)
+                    Text("Press a key combination")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
 
-            TextField("Layout name", text: $editedName)
-                .textFieldStyle(.roundedBorder)
+                    HotkeyRecorderView(
+                        currentHotkey: layout.hotkey,
+                        onHotkeyRecorded: { modifiers, keyCode in
+                            let hotkeyString = HotkeyManager.hotkeyString(modifiers: modifiers, keyCode: keyCode)
+                            appState.updateLayoutHotkey(
+                                id: layout.id,
+                                hotkey: hotkeyString,
+                                modifiers: modifiers,
+                                keyCode: keyCode
+                            )
+                            HotkeyManager.shared.registerHotkey(for: appState.getLayout(by: layout.id)!)
+                            editingHotkey = false
+                        }
+                    )
+                    .frame(height: 36)
 
-            HStack {
-                Button("Cancel") {
-                    editingName = false
+                    HStack {
+                        Button("Clear") {
+                            appState.updateLayoutHotkey(id: layout.id, hotkey: nil, modifiers: nil, keyCode: nil)
+                            HotkeyManager.shared.unregisterHotkey(for: layout.id)
+                            editingHotkey = false
+                        }
+                        .font(.system(size: 10))
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(layout.hotkey == nil)
+
+                        Spacer()
+
+                        Button("Cancel") {
+                            editingHotkey = false
+                        }
+                        .font(.system(size: 10))
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
-                .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button("Save") {
-                    appState.renameLayout(id: layout.id, newName: editedName)
-                    editingName = false
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(editedName.isEmpty)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .transition(.opacity)
             }
+
+            Spacer().frame(height: 8)
         }
-        .padding()
-        .frame(width: 220)
     }
 
-    // MARK: - Hotkey Popover
+    // MARK: - Profile Picker Popover
 
-    private var hotkeyPopover: some View {
+    private var profilePickerPopover: some View {
         VStack(spacing: 12) {
-            Text("Set Hotkey")
+            Text("Set as Profile Default")
                 .font(.headline)
 
-            Text("Press a key combination")
+            Text("Auto-apply this layout when a display profile is detected")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            // Hotkey recorder
-            HotkeyRecorderView(
-                currentHotkey: layout.hotkey,
-                onHotkeyRecorded: { modifiers, keyCode in
-                    let hotkeyString = HotkeyManager.hotkeyString(modifiers: modifiers, keyCode: keyCode)
-                    appState.updateLayoutHotkey(
-                        id: layout.id,
-                        hotkey: hotkeyString,
-                        modifiers: modifiers,
-                        keyCode: keyCode
+            ForEach(displayProfileManager.profiles) { profile in
+                Button {
+                    let isAlreadySet = profile.defaultLayoutId == layout.id
+                    displayProfileManager.setDefaultLayout(
+                        profileId: profile.id,
+                        layoutId: isAlreadySet ? nil : layout.id
                     )
-                    HotkeyManager.shared.registerHotkey(for: appState.getLayout(by: layout.id)!)
-                    editingHotkey = false
-                }
-            )
-            .frame(height: 36)
+                    showProfilePicker = false
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: profile.fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
+                            .font(.system(size: 12))
+                            .frame(width: 16)
 
-            HStack {
-                Button("Clear") {
-                    appState.updateLayoutHotkey(id: layout.id, hotkey: nil, modifiers: nil, keyCode: nil)
-                    HotkeyManager.shared.unregisterHotkey(for: layout.id)
-                    editingHotkey = false
-                }
-                .buttonStyle(.bordered)
-                .disabled(layout.hotkey == nil)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(profile.name)
+                                .font(.system(size: 11, weight: .medium))
+                            Text(profile.displayDescription)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
 
-                Spacer()
+                        Spacer()
 
-                Button("Cancel") {
-                    editingHotkey = false
+                        if profile.defaultLayoutId == layout.id {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(Color.brandPurple)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
             }
         }
         .padding()
-        .frame(width: 220)
+        .frame(width: 240)
     }
 
     // MARK: - Actions
@@ -326,6 +490,15 @@ struct LayoutCardView: View {
             await layoutEngine.applyLayout(layout)
             await MainActor.run {
                 isApplying = false
+                appliedSuccessfully = true
+                appState.markLayoutAsApplied(layout.id)
+
+                // Revert success feedback after 1.5 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation {
+                        appliedSuccessfully = false
+                    }
+                }
             }
         }
     }

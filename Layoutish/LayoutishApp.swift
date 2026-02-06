@@ -45,6 +45,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             Task { @MainActor in
                 HotkeyManager.shared.registerAllHotkeys()
+                HotkeyManager.shared.registerQuickSwitcherHotkey()
+            }
+        }
+
+        // Initialize display profile monitoring after everything else is loaded
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            Task { @MainActor in
+                _ = DisplayProfileManager.shared  // Triggers init, registers CG callback
+                DisplayProfileManager.shared.detectCurrentProfile()  // Match current displays on launch
+                NSLog("Layoutish: Display profile monitoring initialized")
+            }
+        }
+
+        // Initialize schedule manager
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            Task { @MainActor in
+                _ = ScheduleManager.shared  // Triggers init, starts timer if enabled
+                NSLog("Layoutish: Schedule manager initialized")
             }
         }
     }

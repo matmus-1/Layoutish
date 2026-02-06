@@ -55,6 +55,11 @@ struct SettingsPopupView: View {
 
                     Divider()
 
+                    // SCHEDULING Section
+                    ScheduleSettingsSection()
+
+                    Divider()
+
                     // PERMISSIONS Section
                     permissionsSection
 
@@ -66,7 +71,7 @@ struct SettingsPopupView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .frame(maxHeight: 400)
+            .frame(maxHeight: 450)
         }
         .frame(width: 280)
         .onAppear {

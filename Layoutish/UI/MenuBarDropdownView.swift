@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Brand Colors (Matching Lockish)
 
@@ -24,9 +25,11 @@ struct MenuBarDropdownView: View {
     @ObservedObject private var layoutEngine = LayoutEngine.shared
     @ObservedObject private var permissionsManager = PermissionsManager.shared
     @ObservedObject private var licenseManager = LicenseManager.shared
+    @ObservedObject private var displayProfileManager = DisplayProfileManager.shared
 
     @State private var showSettingsPopover = false
     @State private var showNewLayoutSheet = false
+    @State private var showNewProfileSheet = false
     @State private var newLayoutName = ""
 
     /// Check if app is fully active (licensed AND has permissions)
@@ -47,6 +50,11 @@ struct MenuBarDropdownView: View {
                 if !permissionsManager.canProceed {
                     accessibilityWarningBanner
                 }
+            }
+
+            // Show display change banner when new config detected with no matching profile
+            if displayProfileManager.pendingNewFingerprint != nil && isFullyActive {
+                newDisplayConfigBanner
             }
 
             Divider()
@@ -170,7 +178,85 @@ struct MenuBarDropdownView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - New Display Config Banner
+
+    private var newDisplayConfigBanner: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "display.trianglebadge.exclamationmark")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("New Display Configuration")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+
+                    if let fingerprint = displayProfileManager.pendingNewFingerprint {
+                        Text("\(fingerprint.displayCount) display(s) • \(fingerprint.displays.map { $0.localizedName }.joined(separator: " + "))")
+                            .font(.system(size: 9))
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            // Action buttons
+            HStack(spacing: 12) {
+                Button {
+                    showNewProfileSheet = true
+                } label: {
+                    Text("Save as Profile")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(Color.white.opacity(0.25))
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    displayProfileManager.dismissPendingFingerprint()
+                } label: {
+                    Text("Dismiss")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
+        }
+        .background(Color.brandPurple.opacity(0.85))
+        .sheet(isPresented: $showNewProfileSheet) {
+            NewProfileSheet(isPresented: $showNewProfileSheet)
+        }
+    }
+
     // MARK: - Layouts Section
+
+    /// Layouts that were recently applied (exist in both recent list and layouts)
+    private var recentLayouts: [Layout] {
+        appState.recentlyAppliedIds.compactMap { id in
+            appState.layouts.first { $0.id == id }
+        }
+    }
+
+    /// All layouts excluding recent ones
+    private var otherLayouts: [Layout] {
+        let recentIds = Set(appState.recentlyAppliedIds)
+        return appState.layouts.filter { !recentIds.contains($0.id) }
+    }
 
     private var layoutsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -198,12 +284,44 @@ struct MenuBarDropdownView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(Array(appState.layouts.enumerated()), id: \.element.id) { index, layout in
-                            LayoutCardView(layout: layout)
+                        // Recent section
+                        if !recentLayouts.isEmpty && !otherLayouts.isEmpty {
+                            HStack {
+                                Text("Recent")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundStyle(.tertiary)
+                                    .textCase(.uppercase)
+                                    .tracking(0.5)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 4)
+                            .padding(.bottom, 4)
 
-                            if index < appState.layouts.count - 1 {
-                                Divider()
-                                    .padding(.vertical, 1)
+                            ForEach(recentLayouts) { layout in
+                                LayoutCardView(layout: layout)
+                            }
+
+                            Divider()
+                                .padding(.vertical, 6)
+
+                            HStack {
+                                Text("All Layouts")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundStyle(.tertiary)
+                                    .textCase(.uppercase)
+                                    .tracking(0.5)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 4)
+                            .padding(.bottom, 4)
+
+                            ForEach(otherLayouts) { layout in
+                                LayoutCardView(layout: layout)
+                            }
+                        } else {
+                            // No split needed — show all layouts with drag-to-reorder
+                            ForEach(appState.layouts) { layout in
+                                LayoutCardView(layout: layout)
                             }
                         }
                     }
@@ -211,7 +329,7 @@ struct MenuBarDropdownView: View {
                     .padding(.top, 4)
                     .padding(.bottom, 4)
                 }
-                .frame(maxHeight: 220)
+                .frame(maxHeight: 280)
             }
         }
     }
@@ -259,6 +377,25 @@ struct MenuBarDropdownView: View {
                 .opacity(isFullyActive ? 1.0 : 0.5)
 
                 Spacer()
+
+                // Export
+                Button(action: exportLayouts) {
+                    Image(systemName: "arrow.up.doc")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Export layouts to file")
+                .disabled(appState.layouts.isEmpty)
+
+                // Import
+                Button(action: importLayouts) {
+                    Image(systemName: "arrow.down.doc")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Import layouts from file")
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
@@ -284,11 +421,22 @@ struct MenuBarDropdownView: View {
 
                 Spacer()
 
-                // Monitor info
-                Text(MonitorConfiguration.current().description)
-                    .font(.system(size: 10))
+                // Monitor info — show profile name if matched, otherwise raw display names
+                if let profile = displayProfileManager.currentProfile {
+                    HStack(spacing: 3) {
+                        Image(systemName: "display")
+                            .font(.system(size: 8))
+                        Text(profile.name)
+                            .font(.system(size: 10))
+                    }
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
+                } else {
+                    Text(MonitorConfiguration.current().description)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
 
                 Spacer()
 
@@ -303,6 +451,49 @@ struct MenuBarDropdownView: View {
             .padding(.horizontal, 16)
             .padding(.top, 4)
             .padding(.bottom, 6)
+        }
+    }
+
+    // MARK: - Import/Export
+
+    private func exportLayouts() {
+        guard let data = appState.exportLayoutsToJSON() else {
+            NSLog("MenuBarDropdownView: Export encoding failed")
+            return
+        }
+
+        let savePanel = NSSavePanel()
+        savePanel.nameFieldStringValue = "Layoutish-Layouts.json"
+        savePanel.allowedContentTypes = [.json]
+
+        savePanel.begin { result in
+            if result == .OK, let url = savePanel.url {
+                do {
+                    try data.write(to: url)
+                    NSLog("MenuBarDropdownView: Exported \(appState.layouts.count) layouts to \(url.path)")
+                } catch {
+                    NSLog("MenuBarDropdownView: Export write failed - \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func importLayouts() {
+        let openPanel = NSOpenPanel()
+        openPanel.allowedContentTypes = [.json]
+        openPanel.allowsMultipleSelection = false
+        openPanel.message = "Choose a Layoutish export file"
+
+        openPanel.begin { result in
+            if result == .OK, let url = openPanel.url {
+                do {
+                    let data = try Data(contentsOf: url)
+                    try appState.importLayoutsFromJSON(data)
+                    NSLog("MenuBarDropdownView: Imported layouts from \(url.path)")
+                } catch {
+                    NSLog("MenuBarDropdownView: Import failed - \(error.localizedDescription)")
+                }
+            }
         }
     }
 }
@@ -436,6 +627,144 @@ struct NewLayoutSheet: View {
             }
             isCapturing = false
         }
+    }
+}
+
+// MARK: - New Profile Sheet
+
+struct NewProfileSheet: View {
+    @Binding var isPresented: Bool
+    @ObservedObject private var appState = AppState.shared
+    @ObservedObject private var displayProfileManager = DisplayProfileManager.shared
+
+    @State private var profileName: String = ""
+    @State private var selectedLayoutId: UUID?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            // Header
+            HStack {
+                Text("Save Display Profile")
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button(action: { isPresented = false }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Current display info
+            let fingerprint = DisplayFingerprint.current()
+            HStack(spacing: 8) {
+                Image(systemName: fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
+                    .font(.system(size: 20))
+                    .foregroundColor(Color.brandPurple)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(fingerprint.displayCount) display(s)")
+                        .font(.system(size: 12, weight: .medium))
+                    Text(fingerprint.displays.map { $0.localizedName }.joined(separator: " + "))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.brandPurpleBackground.opacity(0.3))
+            )
+
+            // Profile name
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Profile Name")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("e.g., Desk Setup, Laptop Only", text: $profileName)
+                    .textFieldStyle(.roundedBorder)
+            }
+            .onAppear {
+                profileName = DisplayProfile.autoName(from: fingerprint)
+            }
+
+            // Default layout picker (optional)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Auto-Apply Layout (optional)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if appState.layouts.isEmpty {
+                    Text("No saved layouts yet — you can set one later in Settings")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    ForEach(appState.layouts) { layout in
+                        Button {
+                            if selectedLayoutId == layout.id {
+                                selectedLayoutId = nil
+                            } else {
+                                selectedLayoutId = layout.id
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: layout.icon)
+                                    .font(.system(size: 12))
+                                    .frame(width: 16)
+
+                                Text(layout.name)
+                                    .font(.system(size: 11))
+
+                                Spacer()
+
+                                if selectedLayoutId == layout.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color.brandPurple)
+                                } else {
+                                    Image(systemName: "circle")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .padding(.vertical, 3)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Action buttons
+            HStack {
+                Button("Cancel") {
+                    isPresented = false
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button(action: saveProfile) {
+                    Text("Save Profile")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.brandPurple)
+                .disabled(profileName.isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 300, height: 360)
+    }
+
+    private func saveProfile() {
+        displayProfileManager.createProfileFromCurrentDisplays(
+            name: profileName,
+            defaultLayoutId: selectedLayoutId
+        )
+        isPresented = false
     }
 }
 
