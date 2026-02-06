@@ -45,19 +45,19 @@ struct LayoutCardView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(isLastApplied ? Color.successGreenBackground : Color.brandPurpleBackground)
-                        .frame(width: 35, height: 35)
+                        .frame(width: 38, height: 38)
 
                     if layout.windows.isEmpty {
                         Image(systemName: layout.icon)
-                            .font(.system(size: 16))
+                            .font(.system(size: 17))
                             .foregroundColor(isLastApplied ? Color.successGreen : Color.brandPurple)
                     } else {
-                        LayoutThumbnailView(layout: layout, size: 35)
+                        LayoutThumbnailView(layout: layout, size: 38)
                     }
                 }
 
                 // Layout name and info
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         if editingName {
                             // Inline rename field
@@ -68,7 +68,7 @@ struct LayoutCardView: View {
                                 editingName = false
                             })
                             .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 11))
+                            .font(.system(size: 12))
                             .frame(maxWidth: 120)
 
                             Button(action: {
@@ -78,26 +78,26 @@ struct LayoutCardView: View {
                                 editingName = false
                             }) {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 13))
+                                    .font(.system(size: 14))
                                     .foregroundColor(.green)
                             }
                             .buttonStyle(.plain)
 
                             Button(action: { editingName = false }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 13))
+                                    .font(.system(size: 14))
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
                         } else {
                             Text(layout.name)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 13, weight: .medium))
                                 .lineLimit(1)
 
                             // Hotkey badge if set
                             if let hotkey = layout.hotkey {
                                 Text(hotkey)
-                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
                                     .foregroundStyle(.tertiary)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
@@ -111,21 +111,21 @@ struct LayoutCardView: View {
 
                     // Window count, monitor info, and profile badge
                     HStack(spacing: 4) {
-                        Text("\(layout.windowCount) windows • \(layout.uniqueApps.count) apps")
-                            .font(.system(size: 10))
+                        Text("\(layout.windowCount) windows \u{2022} \(layout.uniqueApps.count) apps")
+                            .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
 
                         // Show display profile badge if this layout is a default
                         if let firstProfile = associatedProfiles.first {
                             HStack(spacing: 2) {
                                 Image(systemName: firstProfile.fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
-                                    .font(.system(size: 7))
+                                    .font(.system(size: 9))
                                 Text(firstProfile.name)
-                                    .font(.system(size: 8))
+                                    .font(.system(size: 10))
                             }
                             .foregroundColor(Color.brandPurple)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
                             .background(
                                 RoundedRectangle(cornerRadius: 3)
                                     .fill(Color.brandPurpleBackground)
@@ -141,27 +141,27 @@ struct LayoutCardView: View {
                     if isApplying {
                         ProgressView()
                             .scaleEffect(0.6)
-                            .frame(width: 50, height: 24)
+                            .frame(width: 55, height: 26)
                     } else if appliedSuccessfully {
                         HStack(spacing: 4) {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
                             Text("Applied!")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 11, weight: .medium))
                         }
                         .foregroundColor(Color.successGreen)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 5)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
                                 .fill(Color.successGreenBackground)
                         )
                     } else {
                         Text(isLastApplied ? "Active" : "Apply")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(isLastApplied ? Color.successGreen : Color.brandPurple)
                             .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 5)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(isLastApplied ? Color.successGreenBackground : Color.brandPurpleBackground)
@@ -174,11 +174,11 @@ struct LayoutCardView: View {
 
                 // Expand/collapse chevron
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .padding(.horizontal, 8)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -217,11 +217,11 @@ struct LayoutCardView: View {
             // Apps in this layout
             VStack(alignment: .leading, spacing: 4) {
                 Text("Apps in this layout")
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
 
                 Text(layout.uniqueApps.joined(separator: ", "))
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .lineLimit(2)
             }
@@ -231,16 +231,16 @@ struct LayoutCardView: View {
             // Monitor configuration
             VStack(alignment: .leading, spacing: 4) {
                 Text("Saved for")
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 4) {
                     Image(systemName: layout.matchesCurrentMonitors ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundColor(layout.matchesCurrentMonitors ? .green : .orange)
 
                     Text(layout.monitorConfig.description)
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
             }
@@ -249,14 +249,14 @@ struct LayoutCardView: View {
 
             // Action buttons — two rows
             VStack(spacing: 6) {
-                // Row 1: Update, Rename, Duplicate, Hotkey
+                // Row 1: Update, Rename, Duplicate
                 HStack(spacing: 12) {
                     Button(action: updateLayout) {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 9))
-                            Text("Update")
                                 .font(.system(size: 10))
+                            Text("Update")
+                                .font(.system(size: 11))
                         }
                         .foregroundColor(Color.brandPurple)
                     }
@@ -268,9 +268,9 @@ struct LayoutCardView: View {
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "pencil")
-                                .font(.system(size: 9))
-                            Text("Rename")
                                 .font(.system(size: 10))
+                            Text("Rename")
+                                .font(.system(size: 11))
                         }
                         .foregroundStyle(.secondary)
                     }
@@ -281,9 +281,9 @@ struct LayoutCardView: View {
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "square.on.square")
-                                .font(.system(size: 9))
-                            Text("Duplicate")
                                 .font(.system(size: 10))
+                            Text("Duplicate")
+                                .font(.system(size: 11))
                         }
                         .foregroundStyle(.secondary)
                     }
@@ -299,9 +299,9 @@ struct LayoutCardView: View {
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "keyboard")
-                                .font(.system(size: 9))
-                            Text(layout.hotkey ?? "Hotkey")
                                 .font(.system(size: 10))
+                            Text(layout.hotkey ?? "Hotkey")
+                                .font(.system(size: 11))
                         }
                         .foregroundStyle(layout.hotkey != nil ? Color.brandPurple : .secondary)
                     }
@@ -313,9 +313,9 @@ struct LayoutCardView: View {
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "display")
-                                    .font(.system(size: 9))
-                                Text(associatedProfiles.isEmpty ? "Desk Setup" : associatedProfiles.first!.name)
                                     .font(.system(size: 10))
+                                Text(associatedProfiles.isEmpty ? "Desk Setup" : associatedProfiles.first!.name)
+                                    .font(.system(size: 11))
                                     .lineLimit(1)
                             }
                             .foregroundStyle(!associatedProfiles.isEmpty ? Color.brandPurple : .secondary)
@@ -332,7 +332,7 @@ struct LayoutCardView: View {
                     if showDeleteConfirmation {
                         HStack(spacing: 6) {
                             Text("Delete?")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(.red)
 
                             Button(action: {
@@ -340,7 +340,7 @@ struct LayoutCardView: View {
                                 HotkeyManager.shared.unregisterHotkey(for: layout.id)
                             }) {
                                 Text("Yes")
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 2)
@@ -350,7 +350,7 @@ struct LayoutCardView: View {
 
                             Button(action: { showDeleteConfirmation = false }) {
                                 Text("No")
-                                    .font(.system(size: 10))
+                                    .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
@@ -359,9 +359,9 @@ struct LayoutCardView: View {
                         Button(action: { showDeleteConfirmation = true }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "trash")
-                                    .font(.system(size: 9))
-                                Text("Remove")
                                     .font(.system(size: 10))
+                                Text("Remove")
+                                    .font(.system(size: 11))
                             }
                             .foregroundColor(.red.opacity(0.8))
                         }
@@ -377,7 +377,7 @@ struct LayoutCardView: View {
                     Divider().opacity(0.3)
 
                     Text("Press a key combination")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
 
                     HotkeyRecorderView(
@@ -402,7 +402,7 @@ struct LayoutCardView: View {
                             HotkeyManager.shared.unregisterHotkey(for: layout.id)
                             editingHotkey = false
                         }
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(layout.hotkey == nil)
@@ -412,7 +412,7 @@ struct LayoutCardView: View {
                         Button("Cancel") {
                             editingHotkey = false
                         }
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
@@ -434,7 +434,7 @@ struct LayoutCardView: View {
                 .font(.headline)
 
             Text("Auto-apply this layout when a display profile is detected")
-                .font(.caption)
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -449,14 +449,14 @@ struct LayoutCardView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: profile.fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
-                            .font(.system(size: 12))
-                            .frame(width: 16)
+                            .font(.system(size: 14))
+                            .frame(width: 18)
 
                         VStack(alignment: .leading, spacing: 1) {
                             Text(profile.name)
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.system(size: 13, weight: .medium))
                             Text(profile.displayDescription)
-                                .font(.system(size: 9))
+                                .font(.system(size: 11))
                                 .foregroundStyle(.tertiary)
                                 .lineLimit(1)
                         }
@@ -465,7 +465,7 @@ struct LayoutCardView: View {
 
                         if profile.defaultLayoutId == layout.id {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(Color.brandPurple)
                         }
                     }
@@ -476,7 +476,7 @@ struct LayoutCardView: View {
             }
         }
         .padding()
-        .frame(width: 240)
+        .frame(width: 260)
     }
 
     // MARK: - Actions
@@ -536,7 +536,7 @@ struct LayoutCardView: View {
         LayoutCardView(layout: Layout(
             name: "Coding",
             icon: "chevron.left.forwardslash.chevron.right",
-            hotkey: "⌘⇧1",
+            hotkey: "\u{2318}\u{21E7}1",
             windows: [
                 WindowInfo(appBundleId: "com.apple.Safari", appName: "Safari", frame: .zero, displayId: 1),
                 WindowInfo(appBundleId: "com.apple.Terminal", appName: "Terminal", frame: .zero, displayId: 1),

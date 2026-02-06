@@ -28,6 +28,7 @@ struct MenuBarDropdownView: View {
     @ObservedObject private var displayProfileManager = DisplayProfileManager.shared
 
     @State private var showSettingsPopover = false
+    @State private var showSchedulePopover = false
     @State private var showNewLayoutSheet = false
     @State private var showNewProfileSheet = false
     @State private var newLayoutName = ""
@@ -404,19 +405,40 @@ struct MenuBarDropdownView: View {
             Divider()
                 .opacity(0.5)
 
-            // Bottom row - Settings button on left, Quit on right
+            // Bottom row - Settings & Schedule on left, Quit on right
             HStack {
                 // Settings button
                 Button {
                     showSettingsPopover.toggle()
                 } label: {
-                    Image(systemName: "gear")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "gear")
+                            .font(.system(size: 12))
+                        Text("Settings")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .popover(isPresented: $showSettingsPopover, arrowEdge: .bottom) {
                     SettingsPopupView()
+                }
+
+                // Schedule button
+                Button {
+                    showSchedulePopover.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 12))
+                        Text("Schedule")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundStyle(ScheduleManager.shared.isEnabled ? Color.brandPurple : .secondary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showSchedulePopover, arrowEdge: .bottom) {
+                    SchedulePopoverView()
                 }
 
                 Spacer()
@@ -425,15 +447,15 @@ struct MenuBarDropdownView: View {
                 if let profile = displayProfileManager.currentProfile {
                     HStack(spacing: 3) {
                         Image(systemName: "display")
-                            .font(.system(size: 8))
-                        Text(profile.name)
                             .font(.system(size: 10))
+                        Text(profile.name)
+                            .font(.system(size: 11))
                     }
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                 } else {
                     Text(MonitorConfiguration.current().description)
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
@@ -445,7 +467,7 @@ struct MenuBarDropdownView: View {
                     NSApp.terminate(nil)
                 }
                 .buttonStyle(.plain)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 16)

@@ -55,11 +55,6 @@ struct SettingsPopupView: View {
 
                     Divider()
 
-                    // SCHEDULING Section
-                    ScheduleSettingsSection()
-
-                    Divider()
-
                     // PERMISSIONS Section
                     permissionsSection
 
@@ -71,9 +66,9 @@ struct SettingsPopupView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .frame(maxHeight: 450)
+            .frame(maxHeight: 400)
         }
-        .frame(width: 280)
+        .frame(width: 300)
         .onAppear {
             // Sync the toggle with actual launch at login status
             launchAtLogin = getLaunchAtLoginStatus()
@@ -85,7 +80,7 @@ struct SettingsPopupView: View {
     private var licenseSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("License")
-                .font(.caption)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
@@ -102,16 +97,16 @@ struct SettingsPopupView: View {
     private var generalSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("General")
-                .font(.caption)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
             Toggle(isOn: $launchAtLogin) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Launch at Login")
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                     Text("Start Layoutish automatically when you log in")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -127,16 +122,16 @@ struct SettingsPopupView: View {
     private var behaviorSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Behavior")
-                .font(.caption)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
             Toggle(isOn: $launchAppsOnRestore) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Launch Apps on Restore")
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                     Text("Open apps that aren't running when applying a layout")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -149,7 +144,7 @@ struct SettingsPopupView: View {
     private var permissionsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Permissions")
-                .font(.caption)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
@@ -157,13 +152,13 @@ struct SettingsPopupView: View {
             HStack(spacing: 8) {
                 Image(systemName: permissionsManager.canProceed ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .foregroundColor(permissionsManager.canProceed ? .green : .red)
-                    .font(.system(size: 14))
+                    .font(.system(size: 16))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Accessibility")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                     Text(permissionsManager.canProceed ? "Granted" : "Required for window management")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
 
@@ -175,10 +170,10 @@ struct SettingsPopupView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "hand.raised")
-                        .font(.system(size: 10))
-                        .frame(width: 14)
+                        .font(.system(size: 12))
+                        .frame(width: 16)
                     Text("Open Accessibility Settings")
-                        .font(.system(size: 11))
+                        .font(.system(size: 13))
                 }
                 .foregroundStyle(.blue)
             }
@@ -191,7 +186,7 @@ struct SettingsPopupView: View {
     private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("About")
-                .font(.caption)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
@@ -205,15 +200,15 @@ struct SettingsPopupView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Layoutish")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                         Text("Version \(getAppVersion())")
-                            .font(.system(size: 11))
+                            .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                Text("© 2026 Appish")
-                    .font(.system(size: 10))
+                Text("\u{00A9} 2026 Appish")
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
             }
@@ -227,9 +222,9 @@ struct SettingsPopupView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "link")
-                            .font(.system(size: 10))
+                            .font(.system(size: 12))
                         Text("Website")
-                            .font(.system(size: 11))
+                            .font(.system(size: 13))
                     }
                     .foregroundStyle(.blue)
                 }
@@ -242,9 +237,9 @@ struct SettingsPopupView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "envelope")
-                            .font(.system(size: 10))
+                            .font(.system(size: 12))
                         Text("Support")
-                            .font(.system(size: 11))
+                            .font(.system(size: 13))
                     }
                     .foregroundStyle(.blue)
                 }
@@ -255,9 +250,9 @@ struct SettingsPopupView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 10))
+                            .font(.system(size: 12))
                         Text("Check for Updates")
-                            .font(.system(size: 11))
+                            .font(.system(size: 13))
                     }
                     .foregroundStyle(.blue)
                 }

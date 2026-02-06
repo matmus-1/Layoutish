@@ -31,17 +31,17 @@ struct QuickSwitcherView: View {
             // Search field
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14))
+                    .font(.system(size: 15))
                     .foregroundStyle(.secondary)
 
                 TextField("Search layouts...", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 14))
+                    .font(.system(size: 15))
 
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
@@ -56,10 +56,10 @@ struct QuickSwitcherView: View {
             if filteredLayouts.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: searchText.isEmpty ? "rectangle.3.group" : "magnifyingglass")
-                        .font(.system(size: 24))
+                        .font(.system(size: 26))
                         .foregroundStyle(.tertiary)
                     Text(searchText.isEmpty ? "No saved layouts" : "No matching layouts")
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -81,11 +81,11 @@ struct QuickSwitcherView: View {
             // Footer
             HStack {
                 Text("⌘⇧L to toggle")
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                 Spacer()
                 Text("Esc to close")
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 16)
@@ -114,11 +114,11 @@ struct QuickSwitcherView: View {
                 // Layout info
                 VStack(alignment: .leading, spacing: 2) {
                     Text(layout.name)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                         .lineLimit(1)
 
-                    Text("\(layout.windowCount) windows • \(layout.uniqueApps.count) apps")
-                        .font(.system(size: 9))
+                    Text("\(layout.windowCount) windows \u{2022} \(layout.uniqueApps.count) apps")
+                        .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
 
@@ -127,7 +127,7 @@ struct QuickSwitcherView: View {
                 // Hotkey badge
                 if let hotkey = layout.hotkey {
                     Text(hotkey)
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -140,11 +140,11 @@ struct QuickSwitcherView: View {
                 // Status
                 if justApplied {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 14))
+                        .font(.system(size: 15))
                         .foregroundColor(Color.successGreen)
                 } else if isLastApplied {
                     Text("Active")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color.successGreen)
                 }
             }
