@@ -295,6 +295,12 @@ final class DisplayProfileManager: ObservableObject {
     func renameProfile(id: UUID, newName: String) {
         if let index = profiles.firstIndex(where: { $0.id == id }) {
             profiles[index].name = newName
+
+            // Keep currentProfile in sync if it's the one being renamed
+            if currentProfile?.id == id {
+                currentProfile = profiles[index]
+            }
+
             NSLog("DisplayProfileManager: Renamed profile to '\(newName)'")
         }
     }

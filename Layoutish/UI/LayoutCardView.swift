@@ -60,9 +60,8 @@ struct LayoutCardView: View {
 
                 // Layout name and info
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        if editingName {
-                            // Inline rename field
+                    if editingName {
+                        HStack(spacing: 6) {
                             TextField("Name", text: $editedName, onCommit: {
                                 if !editedName.isEmpty {
                                     appState.renameLayout(id: layout.id, newName: editedName)
@@ -91,31 +90,19 @@ struct LayoutCardView: View {
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
-                        } else {
-                            Text(layout.name)
-                                .font(.system(size: 13, weight: .medium))
-                                .lineLimit(1)
-
-                            // Hotkey badge if set
-                            if let hotkey = layout.hotkey {
-                                Text(hotkey)
-                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color.secondary.opacity(0.1))
-                                    )
-                            }
                         }
+                    } else {
+                        Text(layout.name)
+                            .font(.system(size: 13, weight: .medium))
+                            .lineLimit(1)
                     }
 
-                    // Window count, monitor info, and profile badge
+                    // Window count and profile badge
                     HStack(spacing: 4) {
                         Text("\(layout.windowCount) windows \u{2022} \(layout.uniqueApps.count) apps")
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
+                            .lineLimit(1)
 
                         // Show display profile badge if this layout is a default
                         if let firstProfile = associatedProfiles.first {
@@ -124,6 +111,7 @@ struct LayoutCardView: View {
                                     .font(.system(size: 9))
                                 Text(firstProfile.name)
                                     .font(.system(size: 10))
+                                    .lineLimit(1)
                             }
                             .foregroundColor(Color.brandPurple)
                             .padding(.horizontal, 5)
@@ -132,47 +120,57 @@ struct LayoutCardView: View {
                                 RoundedRectangle(cornerRadius: 3)
                                     .fill(Color.brandPurpleBackground)
                             )
+                            .fixedSize()
                         }
                     }
                 }
 
                 Spacer()
 
-                // Apply button
-                Button(action: applyLayout) {
-                    if isApplying {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .frame(width: 55, height: 26)
-                    } else if appliedSuccessfully {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("Applied!")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .foregroundColor(Color.successGreen)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.successGreenBackground)
-                        )
-                    } else {
-                        Text(isLastApplied ? "Active" : "Apply")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(isLastApplied ? Color.successGreen : Color.brandPurple)
+                // Apply button + hotkey stacked vertically
+                VStack(spacing: 3) {
+                    Button(action: applyLayout) {
+                        if isApplying {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                                .frame(width: 55, height: 26)
+                        } else if appliedSuccessfully {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                Text("Applied!")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(Color.successGreen)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(isLastApplied ? Color.successGreenBackground : Color.brandPurpleBackground)
+                                    .fill(Color.successGreenBackground)
                             )
+                        } else {
+                            Text(isLastApplied ? "Active" : "Apply")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(isLastApplied ? Color.successGreen : Color.brandPurple)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(isLastApplied ? Color.successGreenBackground : Color.brandPurpleBackground)
+                                )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!permissionsManager.canProceed || isApplying)
+                    .animation(.easeInOut(duration: 0.2), value: appliedSuccessfully)
+
+                    // Hotkey badge below the apply button
+                    if let hotkey = layout.hotkey {
+                        Text(hotkey)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.tertiary)
                     }
                 }
-                .buttonStyle(.plain)
-                .disabled(!permissionsManager.canProceed || isApplying)
-                .animation(.easeInOut(duration: 0.2), value: appliedSuccessfully)
 
                 // Expand/collapse chevron
                 Image(systemName: "chevron.down")
