@@ -37,6 +37,8 @@ struct MenuBarDropdownView: View {
     @State private var viewMode: ViewMode = .layouts
     @State private var showNewLayoutSheet = false
     @State private var showNewProfileSheet = false
+    @State private var showRenameProfilePopover = false
+    @State private var renameProfileText = ""
     @State private var newLayoutName = ""
 
     /// Check if app is fully active (licensed AND has permissions)
@@ -487,6 +489,50 @@ struct MenuBarDropdownView: View {
                     }
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
+                    .contextMenu {
+                        Button {
+                            renameProfileText = profile.name
+                            showRenameProfilePopover = true
+                        } label: {
+                            Label("Rename Profile", systemImage: "pencil")
+                        }
+                    }
+                    .popover(isPresented: $showRenameProfilePopover, arrowEdge: .top) {
+                        VStack(spacing: 8) {
+                            Text("Rename Profile")
+                                .font(.system(size: 12, weight: .semibold))
+
+                            TextField("Profile name", text: $renameProfileText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 180)
+                                .onSubmit {
+                                    if !renameProfileText.isEmpty {
+                                        displayProfileManager.renameProfile(id: profile.id, newName: renameProfileText)
+                                        showRenameProfilePopover = false
+                                    }
+                                }
+
+                            HStack {
+                                Button("Cancel") {
+                                    showRenameProfilePopover = false
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+
+                                Button("Save") {
+                                    if !renameProfileText.isEmpty {
+                                        displayProfileManager.renameProfile(id: profile.id, newName: renameProfileText)
+                                        showRenameProfilePopover = false
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color.brandPurple)
+                                .controlSize(.small)
+                                .disabled(renameProfileText.isEmpty)
+                            }
+                        }
+                        .padding(12)
+                    }
                 } else {
                     Text(MonitorConfiguration.current().description)
                         .font(.system(size: 11))

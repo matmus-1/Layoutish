@@ -26,6 +26,8 @@ struct LayoutCardView: View {
     @State private var editingHotkey = false
     @State private var showProfilePicker = false
     @State private var showDeleteConfirmation = false
+    @State private var renamingProfileId: UUID?
+    @State private var renameProfileText: String = ""
 
     /// Display profiles that use this layout as their default
     private var associatedProfiles: [DisplayProfile] {
@@ -381,43 +383,84 @@ struct LayoutCardView: View {
                         .foregroundStyle(.secondary)
 
                     ForEach(displayProfileManager.profiles) { profile in
-                        Button {
-                            let isAlreadySet = profile.defaultLayoutId == layout.id
-                            displayProfileManager.setDefaultLayout(
-                                profileId: profile.id,
-                                layoutId: isAlreadySet ? nil : layout.id
-                            )
-                            showProfilePicker = false
-                        } label: {
+                        if renamingProfileId == profile.id {
+                            // Inline rename field
                             HStack(spacing: 8) {
                                 Image(systemName: profile.fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
                                     .font(.system(size: 14))
                                     .frame(width: 18)
 
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(profile.name)
-                                        .font(.system(size: 12, weight: .medium))
-                                    Text(profile.displayDescription)
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.tertiary)
-                                        .lineLimit(1)
-                                }
+                                TextField("Profile name", text: $renameProfileText)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 12))
+                                    .onSubmit {
+                                        if !renameProfileText.isEmpty {
+                                            displayProfileManager.renameProfile(id: profile.id, newName: renameProfileText)
+                                        }
+                                        renamingProfileId = nil
+                                    }
 
-                                Spacer()
-
-                                if profile.defaultLayoutId == layout.id {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 12, weight: .semibold))
+                                Button {
+                                    if !renameProfileText.isEmpty {
+                                        displayProfileManager.renameProfile(id: profile.id, newName: renameProfileText)
+                                    }
+                                    renamingProfileId = nil
+                                } label: {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 14))
                                         .foregroundColor(Color.brandPurple)
                                 }
+                                .buttonStyle(.plain)
                             }
                             .padding(.vertical, 4)
-                            .contentShape(Rectangle())
+                        } else {
+                            Button {
+                                let isAlreadySet = profile.defaultLayoutId == layout.id
+                                displayProfileManager.setDefaultLayout(
+                                    profileId: profile.id,
+                                    layoutId: isAlreadySet ? nil : layout.id
+                                )
+                                showProfilePicker = false
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: profile.fingerprint.displayCount == 1 ? "laptopcomputer" : "display.2")
+                                        .font(.system(size: 14))
+                                        .frame(width: 18)
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(profile.name)
+                                            .font(.system(size: 12, weight: .medium))
+                                        Text(profile.displayDescription)
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(1)
+                                    }
+
+                                    Spacer()
+
+                                    if profile.defaultLayoutId == layout.id {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(Color.brandPurple)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    renameProfileText = profile.name
+                                    renamingProfileId = profile.id
+                                } label: {
+                                    Label("Rename", systemImage: "pencil")
+                                }
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
 
                     Button("Done") {
+                        renamingProfileId = nil
                         showProfilePicker = false
                     }
                     .font(.system(size: 11))

@@ -189,12 +189,14 @@ struct DisplayProfile: Codable, Identifiable, Equatable {
         }
 
         let hasBuiltIn = fingerprint.displays.contains { $0.isBuiltIn }
-        let externalNames = fingerprint.displays
-            .filter { !$0.isBuiltIn }
-            .map { $0.localizedName }
+        let externalCount = fingerprint.displays.filter { !$0.isBuiltIn }.count
 
-        if hasBuiltIn && !externalNames.isEmpty {
-            return "Desk Setup" // Laptop + external(s) — most common docking scenario
+        if hasBuiltIn && externalCount > 0 {
+            if externalCount == 1 {
+                return "Desk Setup"
+            } else {
+                return "Desk Setup (\(fingerprint.displayCount) Displays)"
+            }
         }
 
         return "\(fingerprint.displayCount) Displays"

@@ -66,8 +66,9 @@ class LayoutEngine: ObservableObject {
             // Skip Layoutish itself
             if ownerName == "Layoutish" { continue }
 
-            // Skip certain system apps without window names (background windows)
-            let skipApps = ["Control Center", "Notification Center", "WindowServer", "Dock"]
+            // Skip system/utility apps that shouldn't be part of saved layouts
+            let skipApps = ["Control Center", "Notification Center", "WindowServer", "Dock",
+                            "System Settings", "System Preferences"]
             if skipApps.contains(ownerName) {
                 continue
             }
@@ -288,6 +289,15 @@ class LayoutEngine: ObservableObject {
             }
         }
 
+        // Final step: Re-raise the frontmost window to guarantee it's on top.
+        // Fallback activations during parallel positioning or retries may have
+        // brought other apps to the front, so we do one final raise.
+        if let frontmost = frontmostWindow, !frontmost.isMinimized,
+           let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == frontmost.appBundleId }) {
+            app.activate(options: [.activateIgnoringOtherApps])
+            NSLog("LayoutEngine: Final re-raise of frontmost app '\(frontmost.appName)'")
+        }
+
         // Update last applied
         AppState.shared.lastAppliedLayoutId = layout.id
 
@@ -391,16 +401,13 @@ class LayoutEngine: ObservableObject {
             let pid = app.processIdentifier
             let axApp = AXUIElementCreateApplication(pid)
 
-            // Pre-activation ONLY for windows that need to be UN-minimized
-            // Apps like Ghostty, Chrome need activation to expose their windows via AX API
-            // BUT: If window should STAY minimized, skip pre-activation entirely (we'll just verify it's still minimized)
-            // This avoids 0.8s delay for every minimized window that doesn't need changes
+            // Unhide (but do NOT activate) so AX windows are accessible.
+            // We avoid app.activate() here because when called for multiple apps
+            // in parallel it brings each app to the front, creating z-order chaos.
+            // If AX windows still aren't accessible, the fallback below (line ~414)
+            // will activate the app as a last resort.
             if !window.isMinimized && attempt == 1 {
-                // Window should be visible - pre-activate in case app is hiding windows
-                NSLog("LayoutEngine: [\(window.appName)] Pre-activating to access windows...")
                 app.unhide()
-                app.activate(options: [.activateIgnoringOtherApps])
-                try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second pre-activation delay
             }
 
             // Get all windows for this app

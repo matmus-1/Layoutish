@@ -43,6 +43,10 @@ final class DisplayProfileManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var displayChangeWorkItem: DispatchWorkItem?
 
+    /// Tracks which profile+layout was last auto-applied to prevent re-apply loops
+    /// (moving windows triggers screen change notifications, which would re-trigger auto-apply)
+    private var lastAutoAppliedKey: String?
+
     /// Configurable delay (in seconds) before fingerprinting after a display change
     var displayChangeDelay: TimeInterval {
         get {
@@ -174,11 +178,19 @@ final class DisplayProfileManager: ObservableObject {
             if isAutoApplyEnabled && profile.isAutoApplyEnabled && confidence.meetsAutoApplyThreshold {
                 if let layoutId = profile.defaultLayoutId,
                    let layout = AppState.shared.getLayout(by: layoutId) {
-                    NSLog("DisplayProfileManager: Auto-applying layout '\(layout.name)' for profile '\(profile.name)'")
+                    // Skip if we already auto-applied this exact profile+layout combo
+                    // (moving windows triggers screen change notifications which would loop)
+                    let applyKey = "\(profile.id)-\(layoutId)"
+                    if lastAutoAppliedKey == applyKey {
+                        NSLog("DisplayProfileManager: Skipping re-apply — already applied '\(layout.name)' for '\(profile.name)'")
+                    } else {
+                        lastAutoAppliedKey = applyKey
+                        NSLog("DisplayProfileManager: Auto-applying layout '\(layout.name)' for profile '\(profile.name)'")
 
-                    Task {
-                        await LayoutEngine.shared.applyLayout(layout)
-                        postAutoApplyNotification(layoutName: layout.name, profileName: profile.name)
+                        Task {
+                            await LayoutEngine.shared.applyLayout(layout)
+                            postAutoApplyNotification(layoutName: layout.name, profileName: profile.name)
+                        }
                     }
                 } else {
                     NSLog("DisplayProfileManager: Profile '\(profile.name)' has no default layout set")
@@ -189,6 +201,7 @@ final class DisplayProfileManager: ObservableObject {
 
             currentProfile = nil
             pendingNewFingerprint = fingerprint
+            lastAutoAppliedKey = nil  // Reset so auto-apply works when a profile matches again
 
             // Post notification about unrecognized configuration
             postNewConfigNotification(fingerprint: fingerprint)
@@ -225,13 +238,22 @@ final class DisplayProfileManager: ObservableObject {
     private func bestMatchingProfile(for fingerprint: DisplayFingerprint) -> (DisplayProfile, DisplayFingerprint.MatchConfidence)? {
         var bestMatch: (DisplayProfile, DisplayFingerprint.MatchConfidence)?
 
+        // Minimum confidence threshold for considering a profile as matching.
+        // Partial matches (different display count) cap at 0.6, so a threshold
+        // of 0.5 effectively requires a strong match (same display count) to be
+        // considered valid. This ensures that adding/removing a monitor is treated
+        // as a new display configuration rather than a partial match of an existing one.
+        let minimumConfidenceThreshold: Float = 0.5
+
         for profile in profiles {
             let confidence = fingerprint.matchConfidence(against: profile.fingerprint)
 
-            if confidence.score > 0 {
+            if confidence.score >= minimumConfidenceThreshold {
                 if bestMatch == nil || confidence > bestMatch!.1 {
                     bestMatch = (profile, confidence)
                 }
+            } else if confidence.score > 0 {
+                NSLog("DisplayProfileManager: Profile '\(profile.name)' has low confidence \(confidence.score) — below threshold \(minimumConfidenceThreshold), treating as no match")
             }
         }
 
