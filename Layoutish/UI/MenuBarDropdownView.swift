@@ -349,10 +349,11 @@ struct MenuBarDropdownView: View {
                     VStack(spacing: 0) {
                         ForEach(appState.layouts) { layout in
                             LayoutCardView(layout: layout)
-                                .opacity(draggingLayout?.id == layout.id ? 0.01 : 1)
                                 .onDrag {
                                     draggingLayout = layout
                                     return NSItemProvider(object: layout.id.uuidString as NSString)
+                                } preview: {
+                                    Color.clear.frame(width: 1, height: 1)
                                 }
                                 .onDrop(of: [.text], delegate: LayoutDropDelegate(
                                     item: layout,
