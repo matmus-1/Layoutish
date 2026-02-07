@@ -319,18 +319,7 @@ struct MenuBarDropdownView: View {
 
     // MARK: - Layouts Section
 
-    /// Layouts that were recently applied (exist in both recent list and layouts)
-    private var recentLayouts: [Layout] {
-        appState.recentlyAppliedIds.compactMap { id in
-            appState.layouts.first { $0.id == id }
-        }
-    }
-
-    /// All layouts excluding recent ones
-    private var otherLayouts: [Layout] {
-        let recentIds = Set(appState.recentlyAppliedIds)
-        return appState.layouts.filter { !recentIds.contains($0.id) }
-    }
+    @State private var draggingLayout: Layout?
 
     private var layoutsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -358,45 +347,18 @@ struct MenuBarDropdownView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
-                        // Recent section
-                        if !recentLayouts.isEmpty && !otherLayouts.isEmpty {
-                            HStack {
-                                Text("Recent")
-                                    .font(.system(size: 9, weight: .medium))
-                                    .foregroundStyle(.tertiary)
-                                    .textCase(.uppercase)
-                                    .tracking(0.5)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 4)
-                            .padding(.bottom, 4)
-
-                            ForEach(recentLayouts) { layout in
-                                LayoutCardView(layout: layout)
-                            }
-
-                            Divider()
-                                .padding(.vertical, 6)
-
-                            HStack {
-                                Text("All Layouts")
-                                    .font(.system(size: 9, weight: .medium))
-                                    .foregroundStyle(.tertiary)
-                                    .textCase(.uppercase)
-                                    .tracking(0.5)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 4)
-                            .padding(.bottom, 4)
-
-                            ForEach(otherLayouts) { layout in
-                                LayoutCardView(layout: layout)
-                            }
-                        } else {
-                            // No split needed — show all layouts with drag-to-reorder
-                            ForEach(appState.layouts) { layout in
-                                LayoutCardView(layout: layout)
-                            }
+                        ForEach(appState.layouts) { layout in
+                            LayoutCardView(layout: layout)
+                                .opacity(draggingLayout?.id == layout.id ? 0.01 : 1)
+                                .onDrag {
+                                    draggingLayout = layout
+                                    return NSItemProvider(object: layout.id.uuidString as NSString)
+                                }
+                                .onDrop(of: [.text], delegate: LayoutDropDelegate(
+                                    item: layout,
+                                    appState: appState,
+                                    draggingLayout: $draggingLayout
+                                ))
                         }
                     }
                     .padding(.horizontal, 16)
@@ -454,7 +416,7 @@ struct MenuBarDropdownView: View {
 
                 // Export
                 Button(action: exportLayouts) {
-                    Image(systemName: "arrow.up.doc")
+                    Label("Export", systemImage: "arrow.up.doc")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -464,7 +426,7 @@ struct MenuBarDropdownView: View {
 
                 // Import
                 Button(action: importLayouts) {
-                    Image(systemName: "arrow.down.doc")
+                    Label("Import", systemImage: "arrow.down.doc")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -588,6 +550,44 @@ struct MenuBarDropdownView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Drag-to-Reorder Drop Delegate
+
+struct LayoutDropDelegate: DropDelegate {
+    let item: Layout
+    let appState: AppState
+    @Binding var draggingLayout: Layout?
+
+    func performDrop(info: DropInfo) -> Bool {
+        withAnimation(.easeInOut(duration: 0.15)) {
+            draggingLayout = nil
+        }
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging = draggingLayout, dragging.id != item.id else { return }
+        guard let fromIndex = appState.layouts.firstIndex(where: { $0.id == dragging.id }),
+              let toIndex = appState.layouts.firstIndex(where: { $0.id == item.id }) else { return }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            appState.moveLayout(from: IndexSet(integer: fromIndex), to: toIndex > fromIndex ? toIndex + 1 : toIndex)
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        // Don't clear here — only clear in performDrop so the card
+        // stays hidden until the system drag preview is dismissed
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        true
     }
 }
 

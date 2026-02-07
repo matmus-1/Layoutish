@@ -15,7 +15,7 @@ struct LicenseView: View {
 
     var onLicenseActivated: (() -> Void)?
 
-    private let checkoutURL = "https://appish.lemonsqueezy.com/checkout/buy/132d7682-cfc6-4980-afae-6c62b2e01d65"
+    private let checkoutURL = "https://appish.lemonsqueezy.com/checkout/buy/56819b38-7f1b-4d1b-ba3c-8f74c550f2a5"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -261,7 +261,7 @@ struct LicenseStatusView: View {
 struct UnlicensedView: View {
     @State private var showLicenseSheet = false
 
-    private let checkoutURL = "https://appish.lemonsqueezy.com/checkout/buy/132d7682-cfc6-4980-afae-6c62b2e01d65"
+    private let checkoutURL = "https://appish.lemonsqueezy.com/checkout/buy/56819b38-7f1b-4d1b-ba3c-8f74c550f2a5"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

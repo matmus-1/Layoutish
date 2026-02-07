@@ -257,6 +257,13 @@ final class LicenseManager: ObservableObject {
             if httpResponse.statusCode == 200 {
                 if let result = try? decoder.decode(LicenseActivationResponse.self, from: data) {
                     if result.isSuccess {
+                        // Verify this key belongs to Layoutish or a bundle
+                        let pName = (result.meta?.productName ?? "").lowercased()
+                        if !pName.contains("layoutish") && !pName.contains("bundle") {
+                            status = .invalid(reason: "This license key is for a different product")
+                            return false
+                        }
+
                         saveLicenseKey(key)
 
                         var expiryDate: Date?
