@@ -42,6 +42,11 @@ final class ScheduleManager: ObservableObject {
 
     // MARK: - Initialization
 
+    deinit {
+        checkTimer?.invalidate()
+        checkTimer = nil
+    }
+
     private init() {
         isEnabled = UserDefaults.standard.bool(forKey: enabledKey)
         loadSchedules()
@@ -64,7 +69,7 @@ final class ScheduleManager: ObservableObject {
     private func startScheduleChecking() {
         stopScheduleChecking()
 
-        checkTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
+        checkTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.checkSchedules()
             }

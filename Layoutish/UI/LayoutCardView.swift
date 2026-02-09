@@ -62,15 +62,16 @@ struct LayoutCardView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     if editingName {
                         HStack(spacing: 6) {
-                            TextField("Name", text: $editedName, onCommit: {
-                                if !editedName.isEmpty {
-                                    appState.renameLayout(id: layout.id, newName: editedName)
+                            TextField("Name", text: $editedName)
+                                .onSubmit {
+                                    if !editedName.isEmpty {
+                                        appState.renameLayout(id: layout.id, newName: editedName)
+                                    }
+                                    editingName = false
                                 }
-                                editingName = false
-                            })
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12))
-                            .frame(maxWidth: 120)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 12))
+                                .frame(maxWidth: 120)
 
                             Button(action: {
                                 if !editedName.isEmpty {
@@ -314,7 +315,7 @@ struct LayoutCardView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "display")
                                     .font(.system(size: 10))
-                                Text(associatedProfiles.isEmpty ? "Desk Setup" : associatedProfiles.first!.name)
+                                Text(associatedProfiles.first?.name ?? "Desk Setup")
                                     .font(.system(size: 11))
                                     .lineLimit(1)
                             }
@@ -489,7 +490,9 @@ struct LayoutCardView: View {
                                 modifiers: modifiers,
                                 keyCode: keyCode
                             )
-                            HotkeyManager.shared.registerHotkey(for: appState.getLayout(by: layout.id)!)
+                            if let updatedLayout = appState.getLayout(by: layout.id) {
+                                HotkeyManager.shared.registerHotkey(for: updatedLayout)
+                            }
                             editingHotkey = false
                         }
                     )

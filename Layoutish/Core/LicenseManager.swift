@@ -182,9 +182,13 @@ final class LicenseManager: ObservableObject {
         isValidating = true
         defer { isValidating = false }
 
-        let url = URL(string: "\(lemonSqueezyAPIBase)/deactivate")!
+        guard let url = URL(string: "\(lemonSqueezyAPIBase)/deactivate") else {
+            NSLog("[License] Invalid deactivation URL")
+            return false
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 15
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
@@ -197,17 +201,16 @@ final class LicenseManager: ObservableObject {
 
         do {
             let (_, _) = try await URLSession.shared.data(for: request)
+            // Server confirmed deactivation — safe to remove local key
             removeLicenseKey()
             status = .noLicense
             customerEmail = nil
             productName = nil
             return true
         } catch {
-            removeLicenseKey()
-            status = .noLicense
-            customerEmail = nil
-            productName = nil
-            return true
+            // Network failed — do NOT remove local key, server still counts the activation
+            NSLog("[License] Deactivation network error: \(error.localizedDescription)")
+            return false
         }
     }
 
@@ -227,10 +230,14 @@ final class LicenseManager: ObservableObject {
         defer { isValidating = false }
 
         let endpoint = activate ? "activate" : "validate"
-        let url = URL(string: "\(lemonSqueezyAPIBase)/\(endpoint)")!
+        guard let url = URL(string: "\(lemonSqueezyAPIBase)/\(endpoint)") else {
+            status = .invalid(reason: "Internal error: invalid URL")
+            return false
+        }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 15
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 

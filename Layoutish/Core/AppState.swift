@@ -30,6 +30,10 @@ class AppState: ObservableObject {
     private let recentKey = "com.appish.layoutish.recentlyApplied"
     private var cancellables = Set<AnyCancellable>()
 
+    deinit {
+        cancellables.removeAll()
+    }
+
     // MARK: - Initialization
 
     private init() {

@@ -111,7 +111,7 @@ struct ScheduleSettingsSection: View {
                             Text("Add Schedule")
                                 .font(.system(size: 13))
                         }
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.brandPurple)
                     }
                     .buttonStyle(.plain)
                     .disabled(appState.layouts.isEmpty)
@@ -176,7 +176,7 @@ struct ScheduleSettingsSection: View {
                             .frame(width: 26, height: 26)
                             .background(
                                 RoundedRectangle(cornerRadius: 5)
-                                    .fill(newDays[index] ? Color.blue : Color.secondary.opacity(0.15))
+                                    .fill(newDays[index] ? Color.brandPurple : Color.secondary.opacity(0.15))
                             )
                             .foregroundColor(newDays[index] ? .white : .secondary)
                     }
@@ -192,21 +192,21 @@ struct ScheduleSettingsSection: View {
                     newDays = [true, true, true, true, true, false, false]
                 }
                 .font(.system(size: 11))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.brandPurple)
                 .buttonStyle(.plain)
 
                 Button("Weekends") {
                     newDays = [false, false, false, false, false, true, true]
                 }
                 .font(.system(size: 11))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.brandPurple)
                 .buttonStyle(.plain)
 
                 Button("Every day") {
                     newDays = Array(repeating: true, count: 7)
                 }
                 .font(.system(size: 11))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.brandPurple)
                 .buttonStyle(.plain)
             }
 
@@ -227,7 +227,7 @@ struct ScheduleSettingsSection: View {
                 }
                 .font(.system(size: 12, weight: .medium))
                 .buttonStyle(.plain)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.brandPurple)
                 .disabled(newName.isEmpty || newLayoutId == nil || !newDays.contains(true))
             }
 
@@ -290,7 +290,7 @@ private struct ScheduleRow: View {
             }) {
                 Image(systemName: schedule.enabled ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 14))
-                    .foregroundColor(schedule.enabled ? (isActive ? Color.successGreen : .blue) : .secondary)
+                    .foregroundColor(schedule.enabled ? (isActive ? Color.successGreen : Color.brandPurple) : .secondary)
             }
             .buttonStyle(.plain)
 

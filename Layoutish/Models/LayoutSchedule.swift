@@ -51,14 +51,21 @@ struct LayoutSchedule: Codable, Identifiable, Equatable {
     }
 
     /// Short days string, e.g. "Mon-Fri" or "Mon, Wed, Fri"
+    /// Uses locale-aware short weekday names (Mon=index 0 through Sun=index 6)
     var daysDescription: String {
-        let dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        // Calendar.shortWeekdaySymbols is Sun-indexed (0=Sun), remap to Mon-indexed
+        let symbols = Calendar.current.shortWeekdaySymbols  // ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+        let dayNames = Array(symbols[1...]) + [symbols[0]]  // ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
         let activeDays = daysOfWeek.enumerated().compactMap { $0.element ? dayNames[$0.offset] : nil }
 
         if activeDays.isEmpty { return "No days" }
         if activeDays.count == 7 { return "Every day" }
-        if activeDays == ["Mon", "Tue", "Wed", "Thu", "Fri"] { return "Weekdays" }
-        if activeDays == ["Sat", "Sun"] { return "Weekends" }
+
+        // Check weekday/weekend patterns using indices rather than localized strings
+        let weekdayPattern: [Bool] = [true, true, true, true, true, false, false]
+        let weekendPattern: [Bool] = [false, false, false, false, false, true, true]
+        if daysOfWeek == weekdayPattern { return "Weekdays" }
+        if daysOfWeek == weekendPattern { return "Weekends" }
 
         return activeDays.joined(separator: ", ")
     }

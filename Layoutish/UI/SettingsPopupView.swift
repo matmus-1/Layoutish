@@ -157,7 +157,7 @@ struct SettingsPopupView: View {
                     Text("Open Accessibility Settings")
                         .font(.system(size: 13))
                 }
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.brandPurple)
             }
             .buttonStyle(.plain)
         }
@@ -189,7 +189,7 @@ struct SettingsPopupView: View {
                     }
                 }
 
-                Text("\u{00A9} 2026 Appish")
+                Text("\u{00A9} \(String(Calendar.current.component(.year, from: Date()))) Appish")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
@@ -208,7 +208,7 @@ struct SettingsPopupView: View {
                         Text("Website")
                             .font(.system(size: 13))
                     }
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.brandPurple)
                 }
                 .buttonStyle(.plain)
 
@@ -223,7 +223,7 @@ struct SettingsPopupView: View {
                         Text("Support")
                             .font(.system(size: 13))
                     }
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.brandPurple)
                 }
                 .buttonStyle(.plain)
 
@@ -236,7 +236,7 @@ struct SettingsPopupView: View {
                         Text("Check for Updates")
                             .font(.system(size: 13))
                     }
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.brandPurple)
                 }
                 .buttonStyle(.plain)
                 .disabled(!checkForUpdatesViewModel.canCheckForUpdates)

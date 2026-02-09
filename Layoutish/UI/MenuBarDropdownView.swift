@@ -40,6 +40,8 @@ struct MenuBarDropdownView: View {
     @State private var showRenameProfilePopover = false
     @State private var renameProfileText = ""
     @State private var newLayoutName = ""
+    @State private var importExportError: String?
+    @State private var showImportExportError = false
 
     /// Check if app is fully active (licensed AND has permissions)
     private var isFullyActive: Bool {
@@ -67,6 +69,11 @@ struct MenuBarDropdownView: View {
         .background(.ultraThinMaterial)
         .sheet(isPresented: $showNewLayoutSheet) {
             NewLayoutSheet(isPresented: $showNewLayoutSheet)
+        }
+        .alert("Import/Export Error", isPresented: $showImportExportError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importExportError ?? "An unknown error occurred")
         }
     }
 
@@ -348,9 +355,10 @@ struct MenuBarDropdownView: View {
                 emptyStateView
             } else {
                 ScrollView {
-                    VStack(spacing: 0) {
+                    LazyVStack(spacing: 0) {
                         ForEach(appState.layouts) { layout in
                             LayoutCardView(layout: layout)
+                                .id(layout.id)
                                 .onDrag {
                                     draggingLayout = layout
                                     return NSItemProvider(object: layout.id.uuidString as NSString)
@@ -560,7 +568,8 @@ struct MenuBarDropdownView: View {
 
     private func exportLayouts() {
         guard let data = appState.exportLayoutsToJSON() else {
-            NSLog("MenuBarDropdownView: Export encoding failed")
+            importExportError = "Failed to encode layouts for export."
+            showImportExportError = true
             return
         }
 
@@ -574,7 +583,8 @@ struct MenuBarDropdownView: View {
                     try data.write(to: url)
                     NSLog("MenuBarDropdownView: Exported \(appState.layouts.count) layouts to \(url.path)")
                 } catch {
-                    NSLog("MenuBarDropdownView: Export write failed - \(error.localizedDescription)")
+                    importExportError = "Failed to save file: \(error.localizedDescription)"
+                    showImportExportError = true
                 }
             }
         }
@@ -593,7 +603,8 @@ struct MenuBarDropdownView: View {
                     try appState.importLayoutsFromJSON(data)
                     NSLog("MenuBarDropdownView: Imported layouts from \(url.path)")
                 } catch {
-                    NSLog("MenuBarDropdownView: Import failed - \(error.localizedDescription)")
+                    importExportError = "Failed to import: \(error.localizedDescription)"
+                    showImportExportError = true
                 }
             }
         }

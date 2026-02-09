@@ -43,6 +43,15 @@ final class DisplayProfileManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var displayChangeWorkItem: DispatchWorkItem?
 
+    /// Stored reference to the CGDisplay reconfiguration callback for cleanup.
+    /// Must be nonisolated because CGDisplayRegisterReconfigurationCallback is a C API
+    /// that calls from outside the main actor context.
+    nonisolated(unsafe) private static let displayReconfigurationCallback: CGDisplayReconfigurationCallBack = { display, flags, userInfo in
+        Task { @MainActor in
+            DisplayProfileManager.shared.handleDisplayReconfiguration(display: display, flags: flags)
+        }
+    }
+
     /// Tracks which profile+layout was last auto-applied to prevent re-apply loops
     /// (moving windows triggers screen change notifications, which would re-trigger auto-apply)
     private var lastAutoAppliedKey: String?
@@ -94,18 +103,17 @@ final class DisplayProfileManager: ObservableObject {
     /// Register for CGDisplay reconfiguration events
     /// This is more reliable than NSScreen notifications for detecting physical display changes
     private func registerDisplayCallback() {
-        // CGDisplayRegisterReconfigurationCallback requires a C function pointer
-        // Must be a literal closure — cannot reference a named function
-        let result = CGDisplayRegisterReconfigurationCallback({ display, flags, userInfo in
-            Task { @MainActor in
-                DisplayProfileManager.shared.handleDisplayReconfiguration(display: display, flags: flags)
-            }
-        }, nil)
+        let result = CGDisplayRegisterReconfigurationCallback(Self.displayReconfigurationCallback, nil)
         if result == .success {
             NSLog("DisplayProfileManager: Registered CGDisplay reconfiguration callback")
         } else {
             NSLog("DisplayProfileManager: Failed to register CGDisplay callback: \(result)")
         }
+    }
+
+    deinit {
+        CGDisplayRemoveReconfigurationCallback(Self.displayReconfigurationCallback, nil)
+        displayChangeWorkItem?.cancel()
     }
 
     /// Handle display reconfiguration event (called from C callback on main thread)

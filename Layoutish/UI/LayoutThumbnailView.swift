@@ -40,7 +40,9 @@ struct LayoutThumbnailView: View {
     private var boundingBox: CGRect {
         let visibleWindows = layout.windows.filter { !$0.isMinimized && $0.frame.width > 0 && $0.frame.height > 0 }
         guard !visibleWindows.isEmpty else {
-            return CGRect(x: 0, y: 0, width: 1920, height: 1080) // Fallback
+            // Use main screen size as fallback instead of hardcoded 1920x1080
+            let mainFrame = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+            return mainFrame
         }
 
         let minX = visibleWindows.map { $0.frame.minX }.min() ?? 0

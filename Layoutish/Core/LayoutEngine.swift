@@ -325,31 +325,6 @@ class LayoutEngine: ObservableObject {
         }
     }
 
-    /// Activate an app and unminimize all its windows
-    private func activateAndUnminimizeApp(bundleId: String) {
-        guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleId }) else {
-            return
-        }
-
-        // Activate the app
-        app.activate(options: [.activateIgnoringOtherApps])
-
-        // Unminimize all windows via Accessibility
-        let axApp = AXUIElementCreateApplication(app.processIdentifier)
-        var windowsRef: CFTypeRef?
-
-        if AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef) == .success,
-           let axWindows = windowsRef as? [AXUIElement] {
-            for axWindow in axWindows {
-                // Unminimize
-                AXUIElementSetAttributeValue(axWindow, kAXMinimizedAttribute as CFString, false as CFTypeRef)
-                // Raise
-                AXUIElementPerformAction(axWindow, kAXRaiseAction as CFString)
-            }
-            NSLog("LayoutEngine: Activated and unminimized \(axWindows.count) window(s) for \(bundleId)")
-        }
-    }
-
     /// Wait for an app to have at least one window (up to timeout)
     private func waitForAppWindow(bundleId: String, appName: String, timeout: TimeInterval = 10.0) async -> Bool {
         let startTime = Date()
@@ -575,12 +550,14 @@ class LayoutEngine: ObservableObject {
         var size = CGSize.zero
 
         if AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionRef) == .success,
-           let posValue = positionRef {
+           let posValue = positionRef,
+           CFGetTypeID(posValue as CFTypeRef) == AXValueGetTypeID() {
             AXValueGetValue(posValue as! AXValue, .cgPoint, &position)
         }
 
         if AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef) == .success,
-           let sizeValue = sizeRef {
+           let sizeValue = sizeRef,
+           CFGetTypeID(sizeValue as CFTypeRef) == AXValueGetTypeID() {
             AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
         }
 
@@ -639,12 +616,14 @@ class LayoutEngine: ObservableObject {
                 var size = CGSize.zero
 
                 if AXUIElementCopyAttributeValue(axWindow, kAXPositionAttribute as CFString, &positionRef) == .success,
-                   let posValue = positionRef {
+                   let posValue = positionRef,
+                   CFGetTypeID(posValue as CFTypeRef) == AXValueGetTypeID() {
                     AXValueGetValue(posValue as! AXValue, .cgPoint, &position)
                 }
 
                 if AXUIElementCopyAttributeValue(axWindow, kAXSizeAttribute as CFString, &sizeRef) == .success,
-                   let sizeValue = sizeRef {
+                   let sizeValue = sizeRef,
+                   CFGetTypeID(sizeValue as CFTypeRef) == AXValueGetTypeID() {
                     AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
                 }
 
