@@ -19,6 +19,8 @@ enum LicenseStatus: Equatable {
     case invalid(reason: String)
     case expired
     case noLicense
+    case trial(daysRemaining: Int)
+    case trialExpired
 }
 
 // MARK: - License Response Models
@@ -121,13 +123,41 @@ final class LicenseManager: ObservableObject {
 
     private let licenseKeyKey = "com.appish.layoutish.licenseKey"
     private let instanceIdKey = "com.appish.layoutish.instanceId"
+    private let trialStartDateKey = "com.appish.layoutish.trialStartDate"
+    private let trialDurationDays = 7
     private let lemonSqueezyAPIBase = "https://api.lemonsqueezy.com/v1/licenses"
 
     // MARK: - Computed Properties
 
+    /// True if the user has a valid license (NOT including trial)
     var isLicensed: Bool {
         if case .valid = status { return true }
         return false
+    }
+
+    /// True if the user has access (valid license OR active trial)
+    var hasActiveAccess: Bool {
+        if case .valid = status { return true }
+        if case .trial = status { return true }
+        return false
+    }
+
+    /// True if the user is currently in trial (not licensed)
+    var isInTrial: Bool {
+        if case .trial = status { return true }
+        return false
+    }
+
+    /// True if the trial has expired and user has no license
+    var trialExpired: Bool {
+        if case .trialExpired = status { return true }
+        return false
+    }
+
+    /// Days remaining in trial (0 if not in trial)
+    var trialDaysRemaining: Int {
+        if case .trial(let days) = status { return days }
+        return 0
     }
 
     var storedLicenseKey: String? {
@@ -147,6 +177,12 @@ final class LicenseManager: ObservableObject {
     // MARK: - Initialization
 
     private init() {
+        // Record trial start date on first launch (only set once)
+        if UserDefaults.standard.object(forKey: trialStartDateKey) == nil {
+            UserDefaults.standard.set(Date(), forKey: trialStartDateKey)
+            NSLog("[License] Trial started — 7 day trial begins now")
+        }
+
         Task {
             await checkExistingLicense()
         }
@@ -157,11 +193,33 @@ final class LicenseManager: ObservableObject {
     /// Check if there's a stored license and validate it
     func checkExistingLicense() async {
         guard let licenseKey = storedLicenseKey else {
-            status = .noLicense
+            // No license key — check trial status
+            updateTrialStatus()
             return
         }
 
         await validateLicense(key: licenseKey, activate: false)
+    }
+
+    /// Update status based on trial period
+    private func updateTrialStatus() {
+        guard let trialStart = UserDefaults.standard.object(forKey: trialStartDateKey) as? Date else {
+            // No trial start date — shouldn't happen (set in init), but treat as expired
+            status = .trialExpired
+            return
+        }
+
+        let calendar = Calendar.current
+        let daysSinceStart = calendar.dateComponents([.day], from: trialStart, to: Date()).day ?? 0
+
+        if daysSinceStart < trialDurationDays {
+            let remaining = trialDurationDays - daysSinceStart
+            status = .trial(daysRemaining: remaining)
+            NSLog("[License] Trial active — \(remaining) days remaining")
+        } else {
+            status = .trialExpired
+            NSLog("[License] Trial expired")
+        }
     }
 
     /// Activate a new license key
@@ -203,9 +261,10 @@ final class LicenseManager: ObservableObject {
             let (_, _) = try await URLSession.shared.data(for: request)
             // Server confirmed deactivation — safe to remove local key
             removeLicenseKey()
-            status = .noLicense
             customerEmail = nil
             productName = nil
+            // Fall back to trial status
+            updateTrialStatus()
             return true
         } catch {
             // Network failed — do NOT remove local key, server still counts the activation
@@ -217,9 +276,10 @@ final class LicenseManager: ObservableObject {
     /// Remove license locally (without deactivating on server)
     func removeLicenseLocally() {
         removeLicenseKey()
-        status = .noLicense
         customerEmail = nil
         productName = nil
+        // Fall back to trial status
+        updateTrialStatus()
     }
 
     // MARK: - Private Methods

@@ -43,9 +43,9 @@ struct MenuBarDropdownView: View {
     @State private var importExportError: String?
     @State private var showImportExportError = false
 
-    /// Check if app is fully active (licensed AND has permissions)
+    /// Check if app is fully active (licensed/trial AND has permissions)
     private var isFullyActive: Bool {
-        licenseManager.isLicensed && permissionsManager.canProceed
+        licenseManager.hasActiveAccess && permissionsManager.canProceed
     }
 
     var body: some View {
@@ -130,14 +130,18 @@ struct MenuBarDropdownView: View {
             // Header
             headerSection
 
-            // Show license warning banner first if not licensed
-            if !licenseManager.isLicensed {
+            // Show trial/license banners
+            if licenseManager.isInTrial {
+                trialBanner
+            } else if licenseManager.trialExpired {
+                trialExpiredBanner
+            } else if !licenseManager.isLicensed {
                 licenseWarningBanner
-            } else {
-                // Show permission warning only if licensed
-                if !permissionsManager.canProceed {
-                    accessibilityWarningBanner
-                }
+            }
+
+            // Show permission warning if user has access (licensed or trial)
+            if licenseManager.hasActiveAccess && !permissionsManager.canProceed {
+                accessibilityWarningBanner
             }
 
             // Show display change banner when new config detected with no matching profile
@@ -192,6 +196,74 @@ struct MenuBarDropdownView: View {
         .padding(.horizontal, 16)
         .padding(.top, 4)
         .padding(.bottom, 4)
+    }
+
+    // MARK: - Trial Banner
+
+    private var trialBanner: some View {
+        Button(action: {
+            if let url = URL(string: "https://appish.lemonsqueezy.com/checkout/buy/56819b38-7f1b-4d1b-ba3c-8f74c550f2a5") {
+                NSWorkspace.shared.open(url)
+            }
+        }) {
+            HStack(spacing: 10) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Trial: \(licenseManager.trialDaysRemaining) day\(licenseManager.trialDaysRemaining == 1 ? "" : "s") remaining")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Tap to buy a license")
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.brandPurpleBackground)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Trial Expired Banner
+
+    private var trialExpiredBanner: some View {
+        Button(action: {
+            viewMode = .settings
+        }) {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.yellow)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Trial Expired")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Enter a license key to continue")
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.red.opacity(0.85))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - License Warning Banner

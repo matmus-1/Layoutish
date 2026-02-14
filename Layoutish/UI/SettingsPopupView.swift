@@ -68,6 +68,8 @@ struct SettingsPopupView: View {
 
             if licenseManager.isLicensed {
                 LicenseStatusView()
+            } else if licenseManager.isInTrial {
+                TrialStatusView()
             } else {
                 UnlicensedView()
             }

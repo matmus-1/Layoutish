@@ -60,19 +60,19 @@ struct LicenseView: View {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(Color.brandPurple.opacity(0.15))
+                    .fill((licenseManager.trialExpired ? Color.red : Color.brandPurple).opacity(0.15))
                     .frame(width: 72, height: 72)
 
-                Image(systemName: "key.fill")
+                Image(systemName: licenseManager.trialExpired ? "clock.badge.xmark" : (licenseManager.isInTrial ? "clock.fill" : "key.fill"))
                     .font(.system(size: 32))
-                    .foregroundColor(.brandPurple)
+                    .foregroundColor(licenseManager.trialExpired ? .red : .brandPurple)
             }
 
-            Text("Activate Layoutish")
+            Text(licenseManager.trialExpired ? "Trial Expired" : (licenseManager.isInTrial ? "\(licenseManager.trialDaysRemaining) Day\(licenseManager.trialDaysRemaining == 1 ? "" : "s") Remaining" : "Activate Layoutish"))
                 .font(.title2)
                 .fontWeight(.bold)
 
-            Text("Enter your license key to unlock all features")
+            Text(licenseManager.trialExpired ? "Your free trial has ended. Enter a license key to continue using Layoutish." : (licenseManager.isInTrial ? "Enter your license key to unlock Layoutish permanently" : "Enter your license key to unlock all features"))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -253,6 +253,93 @@ struct LicenseStatusView: View {
             return "\(prefix)••••\(suffix)"
         }
         return "••••••••"
+    }
+}
+
+// MARK: - Trial Status View (for Settings)
+
+struct TrialStatusView: View {
+    @ObservedObject private var licenseManager = LicenseManager.shared
+    @State private var showLicenseSheet = false
+    @State private var licenseKeyInput = ""
+    @State private var licenseError: String?
+
+    private let checkoutURL = "https://appish.lemonsqueezy.com/checkout/buy/56819b38-7f1b-4d1b-ba3c-8f74c550f2a5"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "clock.fill")
+                    .foregroundColor(.brandPurple)
+                    .font(.system(size: 16))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Free Trial Active")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("\(licenseManager.trialDaysRemaining) day\(licenseManager.trialDaysRemaining == 1 ? "" : "s") remaining")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.brandPurple.opacity(0.1))
+            )
+
+            // License key input (optional during trial)
+            TextField("License key", text: $licenseKeyInput)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11, design: .monospaced))
+
+            if let error = licenseError {
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+            }
+
+            HStack {
+                Button("Activate") {
+                    Task {
+                        licenseError = nil
+                        let success = await licenseManager.activateLicense(key: licenseKeyInput)
+                        if !success {
+                            if case .invalid(let reason) = licenseManager.status {
+                                licenseError = reason
+                            } else {
+                                licenseError = "Activation failed"
+                            }
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.brandPurple)
+                .controlSize(.small)
+                .disabled(licenseKeyInput.isEmpty || licenseManager.isValidating)
+
+                if licenseManager.isValidating {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                }
+
+                Spacer()
+
+                Button("Buy License") {
+                    if let url = URL(string: checkoutURL) {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .controlSize(.small)
+                .foregroundStyle(Color.brandPurple)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
     }
 }
 
