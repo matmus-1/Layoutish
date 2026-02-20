@@ -119,8 +119,8 @@ class PermissionsManager: ObservableObject {
     // MARK: - Polling
 
     private func startPermissionPolling() {
-        NSLog("PermissionsManager: Starting permission polling")
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+        NSLog("PermissionsManager: Starting permission polling (every 1s)")
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor [weak self] in
                 self?.recheckPermissions()
