@@ -16,6 +16,7 @@ struct LayoutCardView: View {
     @ObservedObject var layoutEngine = LayoutEngine.shared
     @ObservedObject var permissionsManager = PermissionsManager.shared
     @ObservedObject var displayProfileManager = DisplayProfileManager.shared
+    @ObservedObject var licenseManager = LicenseManager.shared
 
     @State private var isHovered = false
     @State private var isExpanded = false
@@ -162,7 +163,8 @@ struct LayoutCardView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .disabled(!permissionsManager.canProceed || isApplying)
+                    .disabled(!licenseManager.hasActiveAccess || !permissionsManager.canProceed || isApplying)
+                    .opacity(licenseManager.hasActiveAccess ? 1.0 : 0.5)
                     .animation(.easeInOut(duration: 0.2), value: appliedSuccessfully)
 
                     // Hotkey badge below the apply button

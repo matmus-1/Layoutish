@@ -182,6 +182,12 @@ class LayoutEngine: ObservableObject {
 
     /// Restore a saved layout - launches apps if needed and positions windows
     func applyLayout(_ layout: Layout, launchApps: Bool = true) async {
+        // Enforce license - block layout application when trial has expired
+        guard LicenseManager.shared.hasActiveAccess else {
+            NSLog("LayoutEngine: Layout application blocked - no active license or trial")
+            return
+        }
+
         NSLog("LayoutEngine: ========== APPLYING LAYOUT '\(layout.name)' ==========")
         NSLog("LayoutEngine: Layout has \(layout.windowCount) windows across \(layout.uniqueApps.count) apps")
 
