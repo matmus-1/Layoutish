@@ -209,6 +209,18 @@ final class LicenseManager: ObservableObject {
             return
         }
 
+        #if DEBUG
+        // DEBUG: Use 1-hour trial for testing (remove before release)
+        let hoursSinceStart = Calendar.current.dateComponents([.hour], from: trialStart, to: Date()).hour ?? 0
+        if hoursSinceStart < 1 {
+            let minutesRemaining = max(1, 60 - (Calendar.current.dateComponents([.minute], from: trialStart, to: Date()).minute ?? 0))
+            status = .trial(daysRemaining: 1)
+            NSLog("[License] DEBUG: Trial active — \(minutesRemaining) minutes remaining (1-hour trial)")
+        } else {
+            status = .trialExpired
+            NSLog("[License] DEBUG: 1-hour trial expired")
+        }
+        #else
         let calendar = Calendar.current
         let daysSinceStart = calendar.dateComponents([.day], from: trialStart, to: Date()).day ?? 0
 
@@ -220,6 +232,7 @@ final class LicenseManager: ObservableObject {
             status = .trialExpired
             NSLog("[License] Trial expired")
         }
+        #endif
     }
 
     /// Activate a new license key
