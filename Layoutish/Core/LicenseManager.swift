@@ -127,6 +127,9 @@ final class LicenseManager: ObservableObject {
     private let trialDurationDays = 7
     private let lemonSqueezyAPIBase = "https://api.lemonsqueezy.com/v1/licenses"
 
+    // Periodic trial recheck timer
+    private var trialRecheckTimer: Timer?
+
     // MARK: - Computed Properties
 
     /// True if the user has a valid license (NOT including trial)
@@ -186,6 +189,21 @@ final class LicenseManager: ObservableObject {
         Task {
             await checkExistingLicense()
         }
+        startTrialRecheckTimer()
+    }
+
+    /// Periodically recheck trial status so the app locks out when the trial expires mid-session
+    private func startTrialRecheckTimer() {
+        let interval: TimeInterval = 3600  // Every hour
+        trialRecheckTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                if !self.isLicensed {
+                    self.updateTrialStatus()
+                }
+            }
+        }
     }
 
     // MARK: - Public API
@@ -209,18 +227,6 @@ final class LicenseManager: ObservableObject {
             return
         }
 
-        #if DEBUG
-        // DEBUG: Use 1-hour trial for testing (remove before release)
-        let hoursSinceStart = Calendar.current.dateComponents([.hour], from: trialStart, to: Date()).hour ?? 0
-        if hoursSinceStart < 1 {
-            let minutesRemaining = max(1, 60 - (Calendar.current.dateComponents([.minute], from: trialStart, to: Date()).minute ?? 0))
-            status = .trial(daysRemaining: 1)
-            NSLog("[License] DEBUG: Trial active — \(minutesRemaining) minutes remaining (1-hour trial)")
-        } else {
-            status = .trialExpired
-            NSLog("[License] DEBUG: 1-hour trial expired")
-        }
-        #else
         let calendar = Calendar.current
         let daysSinceStart = calendar.dateComponents([.day], from: trialStart, to: Date()).day ?? 0
 
@@ -232,7 +238,6 @@ final class LicenseManager: ObservableObject {
             status = .trialExpired
             NSLog("[License] Trial expired")
         }
-        #endif
     }
 
     /// Activate a new license key
@@ -357,6 +362,7 @@ final class LicenseManager: ObservableObject {
                         productName = result.meta?.productName
 
                         status = .valid(expiresAt: expiryDate)
+                        trialRecheckTimer?.invalidate()
                         NSLog("[License] Validated successfully for: \(customerEmail ?? "unknown")")
                         return true
                     } else {
